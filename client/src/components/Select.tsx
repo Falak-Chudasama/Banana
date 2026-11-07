@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { CheckIcon, ChevronDownIcon } from './icons'
 
 export interface SelectOption {
@@ -16,13 +16,19 @@ interface SelectProps {
 
 export function Select({ label, value, options, onChange, disabled }: SelectProps) {
   const [open, setOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const rootRef = useRef<HTMLDivElement>(null)
+  const listboxRef = useRef<HTMLUListElement>(null)
   const triggerId = useId()
   const listboxId = useId()
-  const selected = options.find((option) => option.value === value)
+
+  const selectedIndex = options.findIndex((opt) => opt.value === value)
+  const selectedOption = options[selectedIndex]
 
   useEffect(() => {
     if (!open) return
+
+    setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
 
     function handlePointerDown(event: PointerEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
@@ -30,21 +36,53 @@ export function Select({ label, value, options, onChange, disabled }: SelectProp
       }
     }
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
-    }
-
     document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open])
+  }, [open, selectedIndex])
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return
+
+    if (!open) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        setOpen(true)
+      }
+      return
+    }
+
+    switch (event.key) {
+      case 'Escape':
+        event.preventDefault()
+        setOpen(false)
+        break
+      case 'ArrowDown':
+        event.preventDefault()
+        setHighlightedIndex((prev) => (prev + 1 < options.length ? prev + 1 : 0))
+        break
+      case 'ArrowUp':
+        event.preventDefault()
+        setHighlightedIndex((prev) => (prev - 1 >= 0 ? prev - 1 : options.length - 1))
+        break
+      case 'Enter':
+      case ' ':
+        event.preventDefault()
+        if (highlightedIndex >= 0 && highlightedIndex < options.length) {
+          onChange(options[highlightedIndex].value)
+          setOpen(false)
+        }
+        break
+      case 'Tab':
+        setOpen(false)
+        break
+    }
+  }
 
   return (
-    <div ref={rootRef} className="relative">
-      <label htmlFor={triggerId} className="block text-sm font-semibold text-lychee-ink">
+    <div ref={rootRef} className="relative w-full">
+      <label htmlFor={triggerId} className="block text-xs font-semibold uppercase tracking-wider text-lychee-ink/70">
         {label}
       </label>
 
@@ -54,25 +92,31 @@ export function Select({ label, value, options, onChange, disabled }: SelectProp
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-controls={listboxId}
+        aria-controls={open ? listboxId : undefined}
         onClick={() => setOpen((prev) => !prev)}
-        className="focus-ring mt-2 flex w-full items-center justify-between rounded-2xl border border-lychee-border bg-lychee-membrane-100/70 px-4 py-3 text-left text-sm font-medium text-lychee-ink transition hover:bg-lychee-membrane-100 disabled:cursor-not-allowed disabled:opacity-50"
+        onKeyDown={handleKeyDown}
+        className="focus-ring mt-2 flex h-14 sm:h-16 w-full items-center justify-between rounded-2xl border border-white/70 bg-white/80 px-5 text-left text-base font-semibold text-lychee-ink shadow-sm transition hover:bg-white/95 focus:bg-white disabled:cursor-not-allowed disabled:opacity-40"
       >
-        <span>{selected?.label ?? 'Select…'}</span>
+        <span className="truncate">{selectedOption?.label ?? 'Select quality…'}</span>
         <ChevronDownIcon
-          className={`h-4 w-4 text-lychee-seed transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          className={`h-5 w-5 shrink-0 text-lychee-seed-500 transition-transform duration-200 ${
+            open ? 'rotate-180 text-lychee-shell' : ''
+          }`}
         />
       </button>
 
-      {open ? (
+      {open && (
         <ul
+          ref={listboxRef}
           id={listboxId}
           role="listbox"
           aria-labelledby={triggerId}
-          className="animate-pop-in absolute z-10 mt-2 w-full origin-top overflow-hidden rounded-2xl border border-lychee-border bg-white p-1.5 shadow-pop"
+          className="animate-pop-in absolute z-30 mt-2 max-h-64 w-full origin-top overflow-y-auto rounded-2xl border border-white/80 bg-white/95 p-2 shadow-pop backdrop-blur-xl"
         >
-          {options.map((option) => {
+          {options.map((option, index) => {
             const isSelected = option.value === value
+            const isHighlighted = index === highlightedIndex
+
             return (
               <li key={option.value} role="option" aria-selected={isSelected}>
                 <button
@@ -81,20 +125,23 @@ export function Select({ label, value, options, onChange, disabled }: SelectProp
                     onChange(option.value)
                     setOpen(false)
                   }}
-                  className={`focus-ring flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  className={`flex w-full min-h-[44px] items-center justify-between rounded-xl px-4 py-2.5 text-left text-sm sm:text-base font-semibold transition ${
                     isSelected
-                      ? 'bg-lychee-shell-50 text-lychee-shell'
-                      : 'text-lychee-ink hover:bg-lychee-membrane-100'
+                      ? 'bg-lychee-shell text-white font-bold shadow-sm'
+                      : isHighlighted
+                        ? 'bg-lychee-membrane-100 text-lychee-ink'
+                        : 'text-lychee-ink hover:bg-lychee-membrane-50'
                   }`}
                 >
-                  {option.label}
-                  {isSelected ? <CheckIcon className="h-4 w-4" /> : null}
+                  <span className="truncate">{option.label}</span>
+                  {isSelected && <CheckIcon className="h-4 w-4 shrink-0 text-white" />}
                 </button>
               </li>
             )
           })}
         </ul>
-      ) : null}
+      )}
     </div>
   )
 }

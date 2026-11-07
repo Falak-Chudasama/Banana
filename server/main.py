@@ -1,259 +1,365 @@
-import os
-import re
+import logging
 import shutil
-import tempfile
-from pathlib import Path
-from typing import Literal
+import urllib.parse
+from contextlib import asynccontextmanager
+from typing import Any, Dict, List, Literal, Optional
 
-
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
-from starlette.background import BackgroundTask
-from yt_dlp import YoutubeDL
-from yt_dlp.utils import DownloadError
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
+
+from config import (
+    LYCHEE_ALLOWED_ORIGINS,
+    MEDIA_DOWNLOAD_CHUNK_SIZE,
+)
+from discover_service import discover_engine
+from media_service import extract_info_async, prepare_media_job
+from playlist_service import extract_playlist_async
+from resilience import ensure_ffmpeg_in_path
+from storage import PreparedJob, storage_manager
+from stream_service import handle_preview_stream
+from trim_service import trim_media_job
+from validator import is_valid_youtube_url
+
+# Configure logger
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("lychee.api")
 
 
-app = FastAPI(title="Lychee Backend", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: ensure FFmpeg discovery, initialize temp root, and start periodic cleaner
+    try:
+        ensure_ffmpeg_in_path()
+    except Exception as exc:
+        logger.warning(f"Resilience pre-flight check warning: {exc}")
 
+    try:
+        storage_manager.initialize()
+    except Exception as exc:
+        logger.error(f"Storage initialization error: {exc}")
+
+    try:
+        storage_manager.start_periodic_cleanup()
+    except Exception as exc:
+        logger.warning(f"Could not start periodic cleanup: {exc}")
+
+    logger.info("Lychee Backend services initialized and ready.")
+    yield
+
+    # Shutdown: gracefully stop cleaner and purge jobs
+    logger.info("Lychee Backend shutting down...")
+    try:
+        await storage_manager.stop_periodic_cleanup()
+    except Exception as exc:
+        logger.warning(f"Shutdown cleanup warning: {exc}")
+    logger.info("Lychee Backend shutdown complete.")
+
+
+app = FastAPI(
+    title="Lychee Media Backend",
+    version="2.0.0",
+    docs_url=None,
+    redoc_url=None,
+    lifespan=lifespan,
+)
+
+# CORS configuration: explicit whitelist + universal loopback/localhost regex
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=LYCHEE_ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.\d+)(:\d+)?$",
     allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
 
+# Global privacy & cache-prevention middleware
+@app.middleware("http")
+async def add_privacy_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
+# Typed models
 class MediaRequest(BaseModel):
-    url: str
+    url: str = Field(..., min_length=11, max_length=2048)
     format: Literal["mp3", "mp4"] = "mp4"
     quality: str = "best"
 
 
-def is_probably_youtube_url(url: str) -> bool:
-    lowered = url.strip().lower()
-    return (
-        lowered.startswith("http://")
-        or lowered.startswith("https://")
-    ) and (
-        "youtube.com" in lowered
-        or "youtu.be" in lowered
-        or "music.youtube.com" in lowered
-    )
+class PreparedMediaResponse(BaseModel):
+    token: str
+    filename: str
+    filesize: int
+    expires_in: int
 
 
-def safe_filename(name: str, fallback: str = "lychee") -> str:
-    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", name).strip()
-    name = re.sub(r"\s+", " ", name)
-    return name[:180] if name else fallback
+class TrimRequest(BaseModel):
+    url: str = Field(..., min_length=11, max_length=2048)
+    format: Literal["mp3", "mp4"] = "mp3"
+    start_time: float = Field(..., ge=0.0)
+    end_time: float = Field(..., gt=0.0)
 
 
-def cleanup_path(path: str) -> None:
-    shutil.rmtree(path, ignore_errors=True)
+class DiscoverSeedRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=2048)
 
 
-def mp4_format_selector(quality: str) -> str:
-    q = quality.strip().lower()
-
-    mapping = {
-        "best": "bv*+ba/b",
-        "2160p": "bv*[height<=2160]+ba/b[height<=2160]",
-        "1440p": "bv*[height<=1440]+ba/b[height<=1440]",
-        "1080p": "bv*[height<=1080]+ba/b[height<=1080]",
-        "720p": "bv*[height<=720]+ba/b[height<=720]",
-        "480p": "bv*[height<=480]+ba/b[height<=480]",
-        "360p": "bv*[height<=360]+ba/b[height<=360]",
-    }
-
-    return mapping.get(q, "bv*+ba/b")
+class DiscoverRecommendRequest(BaseModel):
+    seed: Dict[str, Any]
+    category: Literal["more_like_this", "same_vibe", "hidden_gems", "trending", "explore"] = "more_like_this"
+    similarity_pref: Literal["experimental", "balanced", "very_similar"] = "balanced"
+    popularity_pref: Literal["underground", "balanced", "popular"] = "balanced"
+    diversity_pref: Literal["high", "normal", "familiar"] = "normal"
+    liked_ids: List[str] = []
+    disliked_ids: List[str] = []
+    known_ids: List[str] = []
+    limit: int = 25
 
 
-def pick_final_file(workdir: str, expected_ext: Literal["mp3", "mp4"]) -> Path:
-    root = Path(workdir)
-    candidates = [
-        p for p in root.rglob("*")
-        if p.is_file() and p.suffix.lower() == f".{expected_ext}"
-    ]
-
-    if not candidates:
-        candidates = [
-            p for p in root.rglob("*")
-            if p.is_file()
-            and not p.name.endswith(".part")
-            and not p.name.endswith(".ytdl")
-            and not p.name.endswith(".json")
-        ]
-
-    if not candidates:
-        raise HTTPException(status_code=500, detail="Download finished, but no output file was found.")
-
-    return max(candidates, key=lambda p: p.stat().st_mtime)
-
-
-def extract_info(url: str) -> dict:
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "skip_download": True,
-    }
-
+# Streaming generator for prepared jobs
+async def stream_media_chunks(job: PreparedJob):
+    await storage_manager.increment_transfers(job.job_id)
+    transfer_succeeded = False
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            return ydl.extract_info(url, download=False)
-    except DownloadError as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to read media info: {exc}") from exc
+        with open(job.filepath, "rb") as f:
+            while True:
+                chunk = f.read(MEDIA_DOWNLOAD_CHUNK_SIZE)
+                if not chunk:
+                    break
+                yield chunk
+        transfer_succeeded = True
+    except (GeneratorExit, ConnectionResetError, BrokenPipeError):
+        logger.info(f"Transfer interrupted for job {job.job_id}")
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid or unsupported URL: {exc}") from exc
+        logger.error(f"Streaming error for job {job.job_id}: {exc}")
+    finally:
+        await storage_manager.decrement_transfers(job.job_id, mark_completed=transfer_succeeded)
 
 
-@app.get("/")
+router = APIRouter()
+
+
+@router.get("/")
 def root():
     return {
         "ok": True,
-        "name": "Lychee Backend",
-        "endpoints": ["/health", "/info", "/download"],
+        "name": "Lychee Media Backend",
+        "version": "2.0.0",
+        "endpoints": [
+            "/health",
+            "/info",
+            "/download/prepare",
+            "/download/stream",
+            "/stream/preview",
+            "/trim/process",
+            "/playlist/info",
+            "/discover/seed",
+            "/discover/recommendations",
+        ],
     }
 
 
-@app.get("/health")
+@router.get("/health")
 def health():
-    return {"ok": True}
-
-
-@app.get("/info")
-def info(url: str = Query(..., description="YouTube URL")):
-    if not is_probably_youtube_url(url):
-        raise HTTPException(status_code=400, detail="Please provide a valid YouTube URL.")
-
-    data = extract_info(url)
-
-    formats = []
-    for f in data.get("formats", [])[:25]:
-        formats.append(
-            {
-                "format_id": f.get("format_id"),
-                "ext": f.get("ext"),
-                "resolution": f.get("resolution"),
-                "height": f.get("height"),
-                "fps": f.get("fps"),
-                "abr": f.get("abr"),
-                "vcodec": f.get("vcodec"),
-                "acodec": f.get("acodec"),
-                "filesize": f.get("filesize") or f.get("filesize_approx"),
-            }
-        )
-
     return {
-        "title": data.get("title"),
-        "uploader": data.get("uploader"),
-        "duration": data.get("duration"),
-        "thumbnail": data.get("thumbnail"),
-        "webpage_url": data.get("webpage_url"),
-        "formats": formats,
+        "ok": True,
+        "active_jobs": storage_manager.active_jobs_count,
     }
 
 
-@app.api_route("/download", methods=["GET", "POST"])
-def download(
-    url: str | None = Query(None, description="YouTube URL"),
+@router.get("/diagnostics")
+def diagnostics():
+    ffmpeg_bin = shutil.which("ffmpeg")
+    return {
+        "ok": True,
+        "ffmpeg": {
+            "available": ffmpeg_bin is not None,
+            "path": ffmpeg_bin,
+        },
+        "storage": {
+            "root": str(storage_manager.temp_root),
+            "exists": storage_manager.temp_root.exists(),
+            "active_jobs": storage_manager.active_jobs_count,
+        },
+    }
+
+
+# 1. Media Info & Metadata
+@router.get("/info")
+async def get_media_info(url: str = Query(..., description="YouTube URL")):
+    if not is_valid_youtube_url(url):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid YouTube URL. Please provide a standard watch, shorts, or youtu.be link.",
+        )
+    return await extract_info_async(url)
+
+
+# 2. Preview Streaming (Range-compatible)
+@router.get("/stream/preview")
+async def preview_stream(
+    request: Request,
+    url: str = Query(..., description="YouTube URL to stream"),
+    format: Literal["audio", "video"] = Query("audio"),
 ):
     """
-    Direct browser download endpoint.
-
-    Use it like:
-    /download?url=https://www.youtube.com/watch?v=xxxx&format=mp4&quality=720p
-
-    Query params supported:
-    - url
-    - format=mp3|mp4
-    - quality=best|2160p|1440p|1080p|720p|480p|360p for mp4
-    - quality=128|192|320 for mp3
+    On-demand seekable media preview using HTTP Range requests (206 Partial Content).
+    Enables native HTML5 audio and video playback without pre-downloading.
     """
-    raise HTTPException(
-        status_code=405,
-        detail="Use POST /download with JSON body or GET /download with query params.",
+    return await handle_preview_stream(url, format, request)
+
+
+# 3. Download Preparation & Native Chunked Streaming
+@router.post("/download/prepare", response_model=PreparedMediaResponse)
+async def prepare_download(payload: MediaRequest):
+    job = await prepare_media_job(payload.url, payload.format, payload.quality)
+    return PreparedMediaResponse(
+        token=job.token,
+        filename=job.filename,
+        filesize=job.filesize,
+        expires_in=storage_manager.ttl_seconds,
     )
 
 
-@app.post("/download")
-def download_post(payload: MediaRequest):
-    return _download_impl(payload.url, payload.format, payload.quality)
+@router.get("/download/stream")
+async def stream_download(token: str = Query(..., description="Short-lived opaque download token")):
+    job = await storage_manager.get_by_token(token)
+    if not job or not job.filepath.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Download token is invalid, expired, or media was already consumed.",
+        )
+
+    encoded_filename = urllib.parse.quote(job.filename)
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{job.filename}\"; filename*=UTF-8''{encoded_filename}",
+        "Content-Length": str(job.filesize),
+    }
+
+    return StreamingResponse(
+        stream_media_chunks(job),
+        media_type=job.media_type,
+        headers=headers,
+    )
 
 
-@app.get("/download/file")
-def download_get(
+@router.get("/download/file")
+async def download_file_direct(
     url: str = Query(..., description="YouTube URL"),
     format: Literal["mp3", "mp4"] = Query("mp4"),
     quality: str = Query("best"),
 ):
-    return _download_impl(url, format, quality)
+    job = await prepare_media_job(url, format, quality)
+    encoded_filename = urllib.parse.quote(job.filename)
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{job.filename}\"; filename*=UTF-8''{encoded_filename}",
+        "Content-Length": str(job.filesize),
+    }
+
+    return StreamingResponse(
+        stream_media_chunks(job),
+        media_type=job.media_type,
+        headers=headers,
+    )
 
 
-def _download_impl(url: str, output_format: Literal["mp3", "mp4"], quality: str):
-    if not is_probably_youtube_url(url):
-        raise HTTPException(status_code=400, detail="Please provide a valid YouTube URL.")
+# 4. Audio & Video Trimming
+@router.post("/trim/process", response_model=PreparedMediaResponse)
+async def process_trim(payload: TrimRequest):
+    """
+    Trim audio or video using FFmpeg and bounded downloads.
+    Returns a short-lived download token for the trimmed file.
+    """
+    job = await trim_media_job(
+        payload.url,
+        payload.format,
+        payload.start_time,
+        payload.end_time,
+    )
+    return PreparedMediaResponse(
+        token=job.token,
+        filename=job.filename,
+        filesize=job.filesize,
+        expires_in=storage_manager.ttl_seconds,
+    )
 
-    workdir = tempfile.mkdtemp(prefix="lychee_")
 
+# 5. Playlist Management
+@router.get("/playlist/info")
+async def get_playlist_info(url: str = Query(..., description="YouTube or YT Music playlist URL")):
+    """
+    Extract flat track listing for a YouTube or YouTube Music playlist.
+    """
+    return await extract_playlist_async(url)
+
+
+# 6. Lychee Discover Engine
+@router.post("/discover/seed")
+async def discover_seed(payload: DiscoverSeedRequest):
+    """
+    Identify seed song from a YouTube link or artist/title search query.
+    """
     try:
-        if output_format == "mp4":
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "noplaylist": True,
-                "outtmpl": os.path.join(workdir, "%(title).200s [%(id)s].%(ext)s"),
-                "format": mp4_format_selector(quality),
-                "merge_output_format": "mp4",
-                "restrictfilenames": False,
-                "windowsfilenames": True,
-            }
-        else:
-            mp3_quality = quality.strip() if quality.strip().isdigit() else "192"
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "noplaylist": True,
-                "outtmpl": os.path.join(workdir, "%(title).200s [%(id)s].%(ext)s"),
-                "format": "bestaudio/best",
-                "postprocessors": [
-                    {
-                        "key": "FFmpegExtractAudio",
-                        "preferredcodec": "mp3",
-                        "preferredquality": mp3_quality,
-                    }
-                ],
-                "restrictfilenames": False,
-                "windowsfilenames": True,
-            }
-
-        try:
-            with YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-        except DownloadError as exc:
-            cleanup_path(workdir)
-            raise HTTPException(status_code=400, detail=f"Download failed: {exc}") from exc
-        except Exception as exc:
-            cleanup_path(workdir)
-            raise HTTPException(status_code=500, detail=f"Something went wrong: {exc}") from exc
-
-        final_file = pick_final_file(workdir, output_format)
-        title = safe_filename(info.get("title", "lychee_download"))
-        filename = f"{title}.{output_format}"
-
-        media_type = "audio/mpeg" if output_format == "mp3" else "video/mp4"
-
-        return FileResponse(
-            path=str(final_file),
-            filename=filename,
-            media_type=media_type,
-            background=BackgroundTask(cleanup_path, workdir),
-        )
-
-    except HTTPException:
-        raise
+        seed = await discover_engine.resolve_seed(payload.query)
+        return {"ok": True, "seed": seed}
     except Exception as exc:
-        cleanup_path(workdir)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning(f"Seed resolution failed for '{payload.query}': {exc}")
+        raise HTTPException(status_code=404, detail=f"Could not identify song: {exc}")
+
+
+@router.post("/discover/recommendations")
+async def discover_recommendations(payload: DiscoverRecommendRequest):
+    """
+    Generate ranked recommendations based on seed track and chosen category.
+    """
+    try:
+        recs = await discover_engine.get_recommendations(
+            seed=payload.seed,
+            category=payload.category,
+            similarity_pref=payload.similarity_pref,
+            popularity_pref=payload.popularity_pref,
+            diversity_pref=payload.diversity_pref,
+            liked_ids=payload.liked_ids,
+            disliked_ids=payload.disliked_ids,
+            known_ids=payload.known_ids,
+            limit=payload.limit,
+        )
+        return {"ok": True, "category": payload.category, "recommendations": recs}
+    except Exception as exc:
+        logger.error(f"Recommendation generation error: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Recommendation engine encountered an error.")
+
+
+# Register routes at root and with /api prefix
+app.include_router(router)
+app.include_router(router, prefix="/api")
+
+
+# Exception handlers
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": True, "detail": exc.detail},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error processing request: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": True, "detail": "An internal server error occurred while processing media."},
+    )
