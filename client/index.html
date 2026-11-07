@@ -1,14 +1,30 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lychee — Ephemeral Media Extractor</title>
     <meta name="description" content="Fast, private YouTube MP4 and MP3 media extractor with zero persistent storage" />
-    <meta name="theme-color" content="#C81D3A" />
+    <meta name="theme-color" content="#0c0608" id="meta-theme-color" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preload" href="/fonts/Host_Grotesk/HostGrotesk-VariableFont_wght.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="/fonts/Unbounded/Unbounded-VariableFont_wght.ttf" as="font" type="font/ttf" crossorigin />
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('lychee_theme');
+          if (t === 'light') {
+            document.documentElement.classList.remove('dark');
+            var meta = document.getElementById('meta-theme-color');
+            if (meta) meta.setAttribute('content', '#fdf2f4');
+          } else {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

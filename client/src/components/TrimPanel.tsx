@@ -130,14 +130,14 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
 
       {/* Sliders and Range preview */}
       <div className="space-y-5 py-4">
-        <div className="rounded-2xl border border-white/80 bg-white/70 p-5 shadow-glass">
-          <div className="flex justify-between text-sm font-bold text-lychee-ink">
+        <div className="rounded-2xl border border-white/80 bg-white/70 p-5 shadow-glass dark:border-white/10 dark:bg-white/[0.04]">
+          <div className="flex justify-between text-sm font-bold text-lychee-ink dark:text-white">
             <span>Selection: {formatDuration(selectedDuration)}</span>
-            <span className="text-lychee-seed-500">Max: {formatDuration(maxDuration)}</span>
+            <span className="text-lychee-seed-500 dark:text-lychee-seed-300">Max: {formatDuration(maxDuration)}</span>
           </div>
 
           <div className="relative mt-4 flex flex-col gap-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-lychee-seed-500">
+            <label className="text-xs font-bold uppercase tracking-wider text-lychee-seed-500 dark:text-lychee-seed-300">
               Start Marker ({toTimeString(startTime)})
             </label>
             <input
@@ -147,10 +147,10 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
               step={1}
               value={startTime}
               onChange={(e) => handleSliderStart(parseFloat(e.target.value))}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-lychee-border/50 accent-lychee-shell"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-lychee-border/50 dark:bg-white/15 accent-lychee-shell"
             />
 
-            <label className="mt-2 text-xs font-bold uppercase tracking-wider text-lychee-seed-500">
+            <label className="mt-2 text-xs font-bold uppercase tracking-wider text-lychee-seed-500 dark:text-lychee-seed-300">
               End Marker ({toTimeString(endTime)})
             </label>
             <input
@@ -160,7 +160,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
               step={1}
               value={endTime}
               onChange={(e) => handleSliderEnd(parseFloat(e.target.value))}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-lychee-border/50 accent-lychee-shell"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-lychee-border/50 dark:bg-white/15 accent-lychee-shell"
             />
           </div>
         </div>
@@ -168,35 +168,35 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
         {/* Exact timestamp inputs and Format */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-lychee-ink/70">Start (mm:ss)</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-lychee-ink/70 dark:text-white/70">Start (mm:ss)</label>
             <input
               type="text"
               value={startInput}
               onChange={(e) => handleStartInputChange(e.target.value)}
               placeholder="00:00"
-              className="focus-ring mt-1.5 h-12 w-full rounded-2xl border border-white/80 bg-white px-4 text-sm font-semibold text-lychee-ink shadow-sm"
+              className="focus-ring mt-1.5 h-12 w-full rounded-2xl border border-white/80 bg-white px-4 text-sm font-semibold text-lychee-ink shadow-sm dark:border-white/10 dark:bg-black/40 dark:text-white dark:placeholder-white/30"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-lychee-ink/70">End (mm:ss)</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-lychee-ink/70 dark:text-white/70">End (mm:ss)</label>
             <input
               type="text"
               value={endInput}
               onChange={(e) => handleEndInputChange(e.target.value)}
               placeholder="01:00"
-              className="focus-ring mt-1.5 h-12 w-full rounded-2xl border border-white/80 bg-white px-4 text-sm font-semibold text-lychee-ink shadow-sm"
+              className="focus-ring mt-1.5 h-12 w-full rounded-2xl border border-white/80 bg-white px-4 text-sm font-semibold text-lychee-ink shadow-sm dark:border-white/10 dark:bg-black/40 dark:text-white dark:placeholder-white/30"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-lychee-ink/70">Clip Format</label>
-            <div className="mt-1.5 grid h-12 grid-cols-2 gap-1.5 rounded-2xl border border-lychee-border/50 bg-lychee-membrane-100 p-1">
+            <label className="block text-xs font-bold uppercase tracking-wider text-lychee-ink/70 dark:text-white/70">Clip Format</label>
+            <div className="mt-1.5 grid h-12 grid-cols-2 gap-1.5 rounded-2xl border border-lychee-border/50 bg-lychee-membrane-100 p-1 dark:border-white/10 dark:bg-black/40">
               <button
                 type="button"
                 onClick={() => setFormat('mp3')}
                 className={`rounded-xl text-xs sm:text-sm font-bold transition ${
-                  format === 'mp3' ? 'bg-lychee-shell text-white shadow-sm' : 'text-lychee-ink hover:bg-white/60'
+                  format === 'mp3' ? 'bg-lychee-shell text-white shadow-sm' : 'text-lychee-ink dark:text-white/75 hover:bg-white/60 dark:hover:bg-white/10'
                 }`}
               >
                 MP3 Audio
@@ -205,7 +205,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
                 type="button"
                 onClick={() => setFormat('mp4')}
                 className={`rounded-xl text-xs sm:text-sm font-bold transition ${
-                  format === 'mp4' ? 'bg-lychee-shell text-white shadow-sm' : 'text-lychee-ink hover:bg-white/60'
+                  format === 'mp4' ? 'bg-lychee-shell text-white shadow-sm' : 'text-lychee-ink dark:text-white/75 hover:bg-white/60 dark:hover:bg-white/10'
                 }`}
               >
                 MP4 Video
@@ -216,9 +216,9 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
       </div>
 
       {/* Action / Trigger */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-lychee-border/30 pt-4">
-        <span className="text-sm font-medium text-lychee-seed-500">
-          Duration: <strong className="text-lychee-ink font-bold">{formatDuration(selectedDuration)}</strong>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-lychee-border/30 dark:border-white/10 pt-4">
+        <span className="text-sm font-medium text-lychee-seed-500 dark:text-lychee-seed-300">
+          Duration: <strong className="text-lychee-ink dark:text-white font-bold">{formatDuration(selectedDuration)}</strong>
         </span>
 
         <button
@@ -238,12 +238,12 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
 
       {/* Success / Download ready banner */}
       {prepared && (
-        <div className="animate-fade-in mt-5 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm text-emerald-900 shadow-sm">
+        <div className="animate-fade-in mt-5 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/90 dark:border-emerald-800/40 dark:bg-emerald-950/40 p-4 text-sm text-emerald-900 dark:text-emerald-200 shadow-sm">
           <div className="flex items-center gap-3">
-            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600" />
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <div>
               <p className="font-bold">{prepared.filename}</p>
-              <p className="text-xs text-emerald-700">Size: {formatFileSize(prepared.filesize)}</p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">Size: {formatFileSize(prepared.filesize)}</p>
             </div>
           </div>
           <button
@@ -259,7 +259,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
 
       {/* Error alert */}
       {error && (
-        <div className="animate-fade-in mt-4 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+        <div className="animate-fade-in mt-4 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/40 p-3 text-xs text-rose-800 dark:text-rose-200">
           <AlertIcon className="h-4 w-4 shrink-0 text-rose-600" />
           <span>{error}</span>
         </div>

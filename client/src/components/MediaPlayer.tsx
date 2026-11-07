@@ -258,18 +258,18 @@ export function MediaPlayer({
             />
           )}
           <div className="min-w-0">
-            <h3 className="truncate text-base sm:text-lg font-bold text-lychee-ink">{title || 'Media Track'}</h3>
-            {artist && <p className="truncate text-xs sm:text-sm font-medium text-lychee-seed-500">{artist}</p>}
+            <h3 className="truncate text-base sm:text-lg font-bold text-lychee-ink dark:text-white">{title || 'Media Track'}</h3>
+            {artist && <p className="truncate text-xs sm:text-sm font-medium text-lychee-seed-500 dark:text-lychee-seed-300">{artist}</p>}
           </div>
         </div>
 
         {/* Audio / Video toggle */}
-        <div className="flex items-center self-start sm:self-auto rounded-xl border border-lychee-border/50 bg-lychee-membrane-100 p-1 text-xs sm:text-sm font-bold">
+        <div className="flex items-center self-start sm:self-auto rounded-xl border border-lychee-border/50 bg-lychee-membrane-100 p-1 text-xs sm:text-sm font-bold dark:border-white/10 dark:bg-black/40">
           <button
             type="button"
             onClick={() => setFormat('audio')}
             className={`rounded-lg px-4 py-1.5 transition ${
-              format === 'audio' ? 'bg-white font-bold text-lychee-shell shadow-sm' : 'text-lychee-ink/70 hover:text-lychee-ink'
+              format === 'audio' ? 'bg-white font-bold text-lychee-shell shadow-sm dark:bg-lychee-shell dark:text-white' : 'text-lychee-ink/70 hover:text-lychee-ink dark:text-white/70 dark:hover:text-white'
             }`}
           >
             Audio
@@ -278,7 +278,7 @@ export function MediaPlayer({
             type="button"
             onClick={() => setFormat('video')}
             className={`rounded-lg px-4 py-1.5 transition ${
-              format === 'video' ? 'bg-white font-bold text-lychee-shell shadow-sm' : 'text-lychee-ink/70 hover:text-lychee-ink'
+              format === 'video' ? 'bg-white font-bold text-lychee-shell shadow-sm dark:bg-lychee-shell dark:text-white' : 'text-lychee-ink/70 hover:text-lychee-ink dark:text-white/70 dark:hover:text-white'
             }`}
           >
             Video
@@ -296,18 +296,18 @@ export function MediaPlayer({
             step={0.1}
             value={currentTime}
             onChange={(e) => handleSeek(parseFloat(e.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-lychee-border/50 accent-lychee-shell focus:outline-none"
+            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-lychee-border/50 dark:bg-white/15 accent-lychee-shell focus:outline-none"
             aria-label="Seek media"
           />
         </div>
-        <div className="flex justify-between text-xs font-semibold text-lychee-seed-500">
+        <div className="flex justify-between text-xs font-semibold text-lychee-seed-500 dark:text-lychee-seed-300">
           <span>{formatDuration(currentTime)}</span>
           <span>{duration > 0 ? formatDuration(duration) : '—:—'}</span>
         </div>
       </div>
 
       {/* Main playback control bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-lychee-border/25">
+      <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-lychee-border/25 dark:border-white/10">
         <div className="flex items-center gap-3">
           {/* Play/Pause */}
           <button
@@ -330,7 +330,7 @@ export function MediaPlayer({
             <button
               type="button"
               onClick={toggleMute}
-              className="rounded-xl p-1.5 text-lychee-seed-500 transition hover:bg-lychee-membrane-100 hover:text-lychee-ink"
+              className="rounded-xl p-1.5 text-lychee-seed-500 hover:bg-lychee-membrane-100 hover:text-lychee-ink dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white transition"
               aria-label={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted || volume === 0 ? (
@@ -346,7 +346,7 @@ export function MediaPlayer({
               step={0.05}
               value={isMuted ? 0 : volume}
               onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-              className="h-2 w-20 cursor-pointer appearance-none rounded-lg bg-lychee-border/50 accent-lychee-shell sm:w-28"
+              className="h-2 w-20 cursor-pointer appearance-none rounded-lg bg-lychee-border/50 dark:bg-white/15 accent-lychee-shell sm:w-28"
               aria-label="Volume"
             />
           </div>
@@ -355,7 +355,7 @@ export function MediaPlayer({
           <button
             type="button"
             onClick={cycleSpeed}
-            className="rounded-xl px-2.5 py-1 text-xs font-bold text-lychee-seed-700 hover:bg-lychee-membrane-100 transition"
+            className="rounded-xl px-2.5 py-1 text-xs font-bold text-lychee-seed-700 hover:bg-lychee-membrane-100 dark:text-lychee-seed-300 dark:hover:bg-white/10 transition"
             title="Playback speed"
           >
             {playbackSpeed}x
@@ -371,7 +371,7 @@ export function MediaPlayer({
               className={`focus-ring inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition active:scale-95 ${
                 isTrimOpen
                   ? 'border-lychee-shell bg-lychee-shell text-white'
-                  : 'border-white/80 bg-white text-lychee-seed-700 hover:bg-lychee-membrane-100'
+                  : 'border-white/80 bg-white text-lychee-seed-700 hover:bg-lychee-membrane-100 dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/15 dark:hover:text-white'
               }`}
             >
               <ScissorsIcon className="h-4 w-4" />
@@ -383,7 +383,7 @@ export function MediaPlayer({
             <button
               type="button"
               onClick={onAddToCollection}
-              className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-white/80 bg-white px-4 py-2.5 text-xs sm:text-sm font-bold text-lychee-seed-700 shadow-sm transition hover:bg-lychee-membrane-100 active:scale-95"
+              className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-white/80 bg-white px-4 py-2.5 text-xs sm:text-sm font-bold text-lychee-seed-700 shadow-sm transition hover:bg-lychee-membrane-100 active:scale-95 dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/15 dark:hover:text-white"
               title="Add to temporary collection"
             >
               <CollectionIcon className="h-4 w-4 text-lychee-shell" />

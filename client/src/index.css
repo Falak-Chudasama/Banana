@@ -37,6 +37,14 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  html.dark {
+    color-scheme: dark;
+  }
+
+  .dark {
+    color: #fceef1;
+  }
+
   html,
   body,
   #root {
@@ -54,6 +62,16 @@
       linear-gradient(180deg, #fdf3f5 0%, #fffbfc 50%, #ffffff 100%);
     background-attachment: fixed;
     background-repeat: no-repeat;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  .dark body {
+    background-color: #0c0608;
+    background-image:
+      radial-gradient(circle at 12% 10%, rgba(200, 29, 58, 0.22), transparent 45%),
+      radial-gradient(circle at 88% 12%, rgba(139, 94, 60, 0.14), transparent 40%),
+      radial-gradient(circle at 50% 88%, rgba(200, 29, 58, 0.12), transparent 50%),
+      linear-gradient(180deg, #0e0709 0%, #13080c 50%, #090406 100%);
   }
 
   * {
@@ -64,6 +82,11 @@
     background: rgba(200, 29, 58, 0.2);
     color: #430612;
   }
+
+  .dark ::selection {
+    background: rgba(232, 74, 106, 0.35);
+    color: #ffffff;
+  }
 }
 
 @layer components {
@@ -72,6 +95,7 @@
     background: rgba(255, 255, 255, 0.94);
     border: 1px solid rgba(255, 255, 255, 0.9);
     box-shadow: 0 20px 48px -12px rgba(67, 24, 37, 0.07), 0 1px 2px 0 rgba(255, 255, 255, 0.9) inset;
+    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
   }
 
   @supports (backdrop-filter: blur(14px)) or (-webkit-backdrop-filter: blur(14px)) {
@@ -84,11 +108,28 @@
     }
   }
 
+  .dark .glass-panel {
+    background: rgba(20, 11, 15, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 1px 1px 0 rgba(255, 255, 255, 0.06) inset;
+  }
+
+  @supports (backdrop-filter: blur(14px)) or (-webkit-backdrop-filter: blur(14px)) {
+    .dark .glass-panel {
+      background: rgba(20, 11, 15, 0.72);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 1px 1px 0 rgba(255, 255, 255, 0.06) inset;
+    }
+  }
+
   /* Sub-surface glass card */
   .glass-card {
     background: rgba(253, 238, 240, 0.7);
     border: 1px solid rgba(241, 184, 196, 0.4);
     box-shadow: 0 2px 8px 0 rgba(67, 24, 37, 0.03), 0 1px 1px 0 rgba(255, 255, 255, 0.8) inset;
+    transition: background 0.25s ease, border-color 0.25s ease;
   }
 
   @supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
@@ -101,9 +142,25 @@
     }
   }
 
+  .dark .glass-card {
+    background: rgba(29, 15, 22, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.45), 0 1px 1px 0 rgba(255, 255, 255, 0.05) inset;
+  }
+
+  @supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
+    .dark .glass-card {
+      background: rgba(29, 15, 22, 0.55);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.45), 0 1px 1px 0 rgba(255, 255, 255, 0.05) inset;
+    }
+  }
+
   /* Standard accessible focus ring */
   .focus-ring {
-    @apply outline-none transition focus-visible:ring-2 focus-visible:ring-lychee-shell focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+    @apply outline-none transition focus-visible:ring-2 focus-visible:ring-lychee-shell focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#0c0608];
   }
 }
 

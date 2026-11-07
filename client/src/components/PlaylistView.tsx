@@ -114,26 +114,26 @@ export function PlaylistView({
       {/* URL Input Form */}
       <section className="glass-panel rounded-3xl p-6 sm:p-10 shadow-glass">
         <form onSubmit={handleFetchPlaylist}>
-          <label htmlFor="playlist-url" className="text-xs font-bold uppercase tracking-wider text-lychee-ink/70">
+          <label htmlFor="playlist-url" className="text-xs font-bold uppercase tracking-wider text-lychee-ink/70 dark:text-white/70">
             YouTube or YouTube Music Playlist URL
           </label>
 
           <div className="relative mt-2 flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
-              <LinkIcon className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-lychee-seed-500" />
+              <LinkIcon className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-lychee-seed-500 dark:text-lychee-seed-300" />
               <input
                 id="playlist-url"
                 type="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://www.youtube.com/playlist?list=..."
-                className="focus-ring h-14 sm:h-16 w-full rounded-2xl border border-white/70 bg-white/80 pl-14 pr-12 text-base sm:text-lg text-lychee-ink placeholder:text-lychee-ink/35 transition hover:bg-white/95 focus:bg-white shadow-sm"
+                className="focus-ring h-14 sm:h-16 w-full rounded-2xl border border-white/70 bg-white/80 pl-14 pr-12 text-base sm:text-lg text-lychee-ink placeholder:text-lychee-ink/35 transition hover:bg-white/95 focus:bg-white shadow-sm dark:border-white/10 dark:bg-black/40 dark:text-white dark:placeholder:text-white/30 dark:hover:bg-black/55 dark:focus:bg-black/60"
               />
               {url && (
                 <button
                   type="button"
                   onClick={() => setUrl('')}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-lychee-ink/40 hover:bg-lychee-membrane-100 hover:text-lychee-ink"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-lychee-ink/40 hover:bg-lychee-membrane-100 hover:text-lychee-ink dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-white"
                   aria-label="Clear URL"
                 >
                   <CloseIcon className="h-5 w-5" />
@@ -157,7 +157,7 @@ export function PlaylistView({
         </form>
 
         {error && (
-          <div className="animate-fade-in mt-5 flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-sm font-medium text-rose-800">
+          <div className="animate-fade-in mt-5 flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-sm font-medium text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-200">
             <AlertIcon className="h-5 w-5 shrink-0 text-rose-600" />
             <span>{error}</span>
           </div>
@@ -168,10 +168,10 @@ export function PlaylistView({
       {playlist && (
         <section aria-label="Playlist Content" className="glass-panel rounded-3xl p-6 sm:p-10 shadow-glass">
           {/* Playlist Summary */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-lychee-border/40 pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-lychee-border/40 dark:border-white/10 pb-6">
             <div>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-lychee-ink">{playlist.title}</h2>
-              <p className="text-sm font-medium text-lychee-seed-500 mt-0.5">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-lychee-ink dark:text-white">{playlist.title}</h2>
+              <p className="text-sm font-medium text-lychee-seed-500 dark:text-lychee-seed-300 mt-0.5">
                 {playlist.uploader} &middot; {playlist.track_count} tracks
               </p>
             </div>
@@ -180,7 +180,7 @@ export function PlaylistView({
               <button
                 type="button"
                 onClick={toggleSelectAll}
-                className="rounded-2xl border border-white/80 bg-white/80 px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-bold text-lychee-seed-700 shadow-glass hover:bg-white transition active:scale-95"
+                className="rounded-2xl border border-white/80 bg-white/80 px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-bold text-lychee-seed-700 shadow-glass hover:bg-white dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/15 dark:hover:text-white transition active:scale-95"
               >
                 {selectedIds.size === playlist.tracks.length ? 'Deselect All' : 'Select All'}
               </button>
@@ -189,9 +189,9 @@ export function PlaylistView({
                 type="button"
                 onClick={handleAddSelectedToCollection}
                 disabled={selectedIds.size === 0}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/80 bg-white/80 px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-bold text-lychee-seed-700 shadow-glass hover:bg-white transition active:scale-95 disabled:opacity-40"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/80 bg-white/80 px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-bold text-lychee-seed-700 shadow-glass hover:bg-white dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/15 dark:hover:text-white transition active:scale-95 disabled:opacity-40"
               >
-                <CollectionIcon className="h-4 w-4 text-lychee-shell" />
+                <CollectionIcon className="h-4 w-4 text-lychee-shell dark:text-lychee-shell-400" />
                 <span>Collect ({selectedIds.size})</span>
               </button>
 
@@ -213,14 +213,14 @@ export function PlaylistView({
 
           {/* Batch Progress Bar */}
           {batchProgress && (
-            <div className="animate-fade-in my-5 rounded-2xl border border-lychee-border/60 bg-lychee-membrane-100/80 p-4 text-sm font-semibold">
-              <div className="flex justify-between text-lychee-ink">
+            <div className="animate-fade-in my-5 rounded-2xl border border-lychee-border/60 bg-lychee-membrane-100/80 dark:border-white/10 dark:bg-white/[0.05] p-4 text-sm font-semibold">
+              <div className="flex justify-between text-lychee-ink dark:text-white">
                 <span>Downloading: {batchProgress.currentTitle}</span>
                 <span>
                   {batchProgress.current} / {batchProgress.total}
                 </span>
               </div>
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-lychee-border/40">
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-lychee-border/40 dark:bg-white/15">
                 <div
                   className="h-full bg-lychee-shell transition-all duration-300"
                   style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
@@ -230,23 +230,23 @@ export function PlaylistView({
           )}
 
           {/* Track List */}
-          <div className="mt-5 divide-y divide-lychee-border/30">
+          <div className="mt-5 divide-y divide-lychee-border/30 dark:divide-white/10">
             {playlist.tracks.map((track, idx) => {
               const isSelected = selectedIds.has(track.id)
               return (
                 <div
                   key={track.id}
-                  className="flex items-center justify-between gap-4 py-3.5 transition hover:bg-white/50 rounded-2xl px-3 -mx-3"
+                  className="flex items-center justify-between gap-4 py-3.5 transition hover:bg-white/50 dark:hover:bg-white/[0.04] rounded-2xl px-3 -mx-3"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleTrack(track.id)}
-                      className="h-5 w-5 rounded-md border-lychee-border text-lychee-shell accent-lychee-shell focus:ring-lychee-shell"
+                      className="h-5 w-5 rounded-md border-lychee-border dark:border-white/20 dark:bg-black/40 text-lychee-shell accent-lychee-shell focus:ring-lychee-shell"
                       aria-label={`Select ${track.title}`}
                     />
-                    <span className="w-6 text-center text-xs font-bold text-lychee-seed-500">
+                    <span className="w-6 text-center text-xs font-bold text-lychee-seed-500 dark:text-lychee-seed-300">
                       {idx + 1}
                     </span>
                     <img
@@ -264,8 +264,8 @@ export function PlaylistView({
                       loading="lazy"
                     />
                     <div className="min-w-0">
-                      <p className="truncate text-base font-bold text-lychee-ink">{track.title}</p>
-                      <p className="truncate text-xs sm:text-sm font-medium text-lychee-seed-500">
+                      <p className="truncate text-base font-bold text-lychee-ink dark:text-white">{track.title}</p>
+                      <p className="truncate text-xs sm:text-sm font-medium text-lychee-seed-500 dark:text-lychee-seed-300">
                         {track.artist} {track.duration ? `· ${formatDuration(track.duration)}` : ''}
                       </p>
                     </div>
@@ -275,7 +275,7 @@ export function PlaylistView({
                     <button
                       type="button"
                       onClick={() => onPlayTrack(track)}
-                      className="rounded-xl p-2.5 text-lychee-shell hover:bg-lychee-shell-50 transition active:scale-95"
+                      className="rounded-xl p-2.5 text-lychee-shell dark:text-lychee-shell-400 hover:bg-lychee-shell-50 dark:hover:bg-white/10 transition active:scale-95"
                       title="Play track"
                     >
                       <PlayIcon className="h-5 w-5" />
@@ -283,7 +283,7 @@ export function PlaylistView({
                     <button
                       type="button"
                       onClick={() => onDownloadTrack(track)}
-                      className="rounded-xl p-2.5 text-lychee-seed-700 hover:bg-lychee-membrane-100 transition active:scale-95"
+                      className="rounded-xl p-2.5 text-lychee-seed-700 dark:text-lychee-seed-300 hover:bg-lychee-membrane-100 dark:hover:bg-white/10 transition active:scale-95"
                       title="Download track"
                     >
                       <DownloadIcon className="h-5 w-5" />
