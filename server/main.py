@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from config import (
-    LYCHEE_ALLOWED_ORIGINS,
+    BANANA_ALLOWED_ORIGINS,
     MEDIA_DOWNLOAD_CHUNK_SIZE,
 )
 from discover_service import discover_engine
@@ -27,7 +27,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("lychee.api")
+logger = logging.getLogger("banana.api")
 
 
 @asynccontextmanager
@@ -48,16 +48,16 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning(f"Could not start periodic cleanup: {exc}")
 
-    logger.info("Lychee Backend services initialized and ready.")
+    logger.info("Banana Backend services initialized and ready.")
     yield
 
     # Shutdown: gracefully stop cleaner and purge jobs
-    logger.info("Lychee Backend shutting down...")
+    logger.info("Banana Backend shutting down...")
     try:
         await storage_manager.stop_periodic_cleanup()
     except Exception as exc:
         logger.warning(f"Shutdown cleanup warning: {exc}")
-    logger.info("Lychee Backend shutdown complete.")
+    logger.info("Banana Backend shutdown complete.")
 
 
 app = FastAPI(
@@ -71,9 +71,9 @@ app = FastAPI(
 # CORS configuration: explicit whitelist + universal loopback/localhost regex
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=LYCHEE_ALLOWED_ORIGINS,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.\d+)(:\d+)?$",
-    allow_credentials=False,
+    allow_origins=BANANA_ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https?://([a-zA-Z0-9.-]+\.)?banana\.com(:\d+)?$|^https?://(localhost|127\.0\.0\.\d+)(:\d+)?$",
+    allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -305,38 +305,68 @@ async def get_playlist_info(url: str = Query(..., description="YouTube or YT Mus
     return await extract_playlist_async(url)
 
 
-# 6. Lychee Discover Engine
-@router.post("/discover/seed")
-async def discover_seed(payload: DiscoverSeedRequest):
+# 6. Banana Discover Engine
+@router.api_route("/discover/seed", methods=["GET", "POST"])
+async def discover_seed(
+    request: Request,
+    payload: Optional[DiscoverSeedRequest] = None,
+    query: Optional[str] = Query(None, description="YouTube link or search query"),
+):
     """
-    Identify seed song from a YouTube link or artist/title search query.
+    Identify seed song from a YouTube link or artist/title search query (supports POST body or GET ?query=).
     """
+    search_query = query
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            if isinstance(body, dict) and body.get("query"):
+                search_query = str(body["query"])
+        except Exception:
+            if payload and payload.query:
+                search_query = payload.query
+
+    if not search_query:
+        if request.method == "GET":
+            return {"ok": True, "message": "Discover seed endpoint ready. Provide ?query=<term> or send POST."}
+        raise HTTPException(status_code=400, detail="Missing required 'query' parameter.")
+
     try:
-        seed = await discover_engine.resolve_seed(payload.query)
+        seed = await discover_engine.resolve_seed(search_query)
         return {"ok": True, "seed": seed}
     except Exception as exc:
-        logger.warning(f"Seed resolution failed for '{payload.query}': {exc}")
+        logger.warning(f"Seed resolution failed for '{search_query}': {exc}")
         raise HTTPException(status_code=404, detail=f"Could not identify song: {exc}")
 
 
-@router.post("/discover/recommendations")
-async def discover_recommendations(payload: DiscoverRecommendRequest):
+@router.api_route("/discover/recommendations", methods=["GET", "POST"])
+async def discover_recommendations(request: Request, payload: Optional[DiscoverRecommendRequest] = None):
     """
     Generate ranked recommendations based on seed track and chosen category.
     """
+    if request.method == "GET":
+        return {"ok": True, "message": "Discover recommendations endpoint ready. Send POST with seed and category."}
+
+    req_payload = payload
+    if req_payload is None:
+        try:
+            body_dict = await request.json()
+            req_payload = DiscoverRecommendRequest(**body_dict)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid recommendation payload: {exc}")
+
     try:
         recs = await discover_engine.get_recommendations(
-            seed=payload.seed,
-            category=payload.category,
-            similarity_pref=payload.similarity_pref,
-            popularity_pref=payload.popularity_pref,
-            diversity_pref=payload.diversity_pref,
-            liked_ids=payload.liked_ids,
-            disliked_ids=payload.disliked_ids,
-            known_ids=payload.known_ids,
-            limit=payload.limit,
+            seed=req_payload.seed,
+            category=req_payload.category,
+            similarity_pref=req_payload.similarity_pref,
+            popularity_pref=req_payload.popularity_pref,
+            diversity_pref=req_payload.diversity_pref,
+            liked_ids=req_payload.liked_ids,
+            disliked_ids=req_payload.disliked_ids,
+            known_ids=req_payload.known_ids,
+            limit=req_payload.limit,
         )
-        return {"ok": True, "category": payload.category, "recommendations": recs}
+        return {"ok": True, "category": req_payload.category, "recommendations": recs}
     except Exception as exc:
         logger.error(f"Recommendation generation error: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail="Recommendation engine encountered an error.")

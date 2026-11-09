@@ -104,7 +104,7 @@ def is_valid_playlist_url(url: str) -> bool:
     return extract_playlist_id(url) is not None
 
 
-def sanitize_filename(name: str, fallback: str = "lychee_media") -> str:
+def sanitize_filename(name: str, fallback: str = "banana_media") -> str:
     """Sanitize filename to prevent directory traversal and illegal filesystem characters."""
     if not name:
         return fallback

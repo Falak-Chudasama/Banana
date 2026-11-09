@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from config import DISCOVER_MAX_RECOMMENDATIONS
 from validator import extract_youtube_id, is_valid_youtube_url
 
-logger = logging.getLogger("lychee.discover")
+logger = logging.getLogger("banana.discover")
 
 # Global lazy YTMusic client
 _ytm_client = None

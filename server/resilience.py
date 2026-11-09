@@ -8,7 +8,7 @@ import urllib.request
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-logger = logging.getLogger("lychee.resilience")
+logger = logging.getLogger("banana.resilience")
 
 # Known potential locations for FFmpeg binaries across Windows, Linux, and macOS
 COMMON_FFMPEG_DIRS: List[Path] = [
@@ -63,10 +63,10 @@ def test_socket_bind(host: str, port: int) -> bool:
 
 
 def is_service_responding(host: str, port: int, path: str = "/health", timeout: float = 1.0) -> bool:
-    """Check if an existing Lychee or HTTP service is already active on host:port."""
+    """Check if an existing Banana or HTTP service is already active on host:port."""
     url = f"http://{host}:{port}{path}"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Lychee-Health-Probe/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Banana-Health-Probe/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.status in (200, 204)
     except Exception:
@@ -108,10 +108,10 @@ def resolve_resilient_bind(
     if test_socket_bind(chosen_host, preferred_port):
         return chosen_host, preferred_port
 
-    # 4. If preferred_port is occupied, check if Lychee is already running
+    # 4. If preferred_port is occupied, check if Banana is already running
     if is_service_responding(chosen_host, preferred_port):
         logger.info(
-            f"An active Lychee service was detected already operational on http://{chosen_host}:{preferred_port}."
+            f"An active Banana service was detected already operational on http://{chosen_host}:{preferred_port}."
         )
         return chosen_host, preferred_port
 
@@ -135,8 +135,8 @@ def ensure_temp_storage(primary_path: Path) -> Path:
     """
     candidates = [
         primary_path,
-        Path(tempfile.gettempdir()) / "lychee_media_temp",
-        Path("./.lychee_temp").resolve(),
+        Path(tempfile.gettempdir()) / "banana_media_temp",
+        Path("./.banana_temp").resolve(),
     ]
 
     for candidate in candidates:

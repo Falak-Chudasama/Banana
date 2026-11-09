@@ -48,7 +48,7 @@ export default function App() {
   // Dark/Light theme state - default dark
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('banana_theme') || localStorage.getItem('lychee_theme')
+      const saved = localStorage.getItem('banana_theme')
       if (saved === 'light' || saved === 'dark') return saved
     }
     return 'dark'

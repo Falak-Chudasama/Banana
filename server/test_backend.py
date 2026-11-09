@@ -67,7 +67,7 @@ class TestValidator(unittest.TestCase):
         self.assertEqual(sanitize_filename("valid_title"), "valid_title")
         self.assertEqual(sanitize_filename("Title / with : illegal * chars?"), "Title _ with _ illegal _ chars")
         self.assertEqual(sanitize_filename("../../../etc/passwd"), "etc_passwd")
-        self.assertEqual(sanitize_filename(""), "lychee_media")
+        self.assertEqual(sanitize_filename(""), "banana_media")
 
 
 class TestDiscoverUtilities(unittest.TestCase):
@@ -126,7 +126,7 @@ class TestTrimmingUtilities(unittest.TestCase):
 
 class TestMediaStorageManager(unittest.TestCase):
     def setUp(self):
-        self.test_dir = Path(tempfile.mkdtemp(prefix="test_lychee_root_"))
+        self.test_dir = Path(tempfile.mkdtemp(prefix="test_banana_root_"))
         self.manager = MediaStorageManager()
         self.manager.temp_root = self.test_dir
         self.manager.ttl_seconds = 1

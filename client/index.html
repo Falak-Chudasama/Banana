@@ -13,7 +13,7 @@
     <script>
       (function() {
         try {
-          var t = localStorage.getItem('banana_theme') || localStorage.getItem('lychee_theme');
+          var t = localStorage.getItem('banana_theme');
           var isDark = t ? t === 'dark' : true;
           if (isDark) {
             document.documentElement.classList.add('dark');

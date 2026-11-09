@@ -12,7 +12,7 @@ from config import MEDIA_MAX_DURATION_SECONDS
 from storage import PreparedJob, storage_manager
 from validator import is_valid_youtube_url, sanitize_filename
 
-logger = logging.getLogger("lychee.media")
+logger = logging.getLogger("banana.media")
 
 YDL_BASE_OPTS = {
     "quiet": True,
@@ -181,7 +181,7 @@ def _sync_download(
         raise HTTPException(status_code=500, detail="Media processing failed. Please try again.") from exc
 
     final_file = pick_final_file(workdir, output_format)
-    title = sanitize_filename(info.get("title") or "lychee_download")
+    title = sanitize_filename(info.get("title") or "banana_download")
     return final_file, title
 
 

@@ -333,4 +333,3 @@ export function BananaMark(props: IconProps) {
 
 // Aliases for seamless rebranding
 export const BananaLogo = BananaMark
-export const LycheeMark = BananaMark

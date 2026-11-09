@@ -1,7 +1,10 @@
 import type { MediaFormat, MediaInfo, PreparedDownload } from './types'
 export type { MediaFormat, MediaInfo, PreparedDownload }
 
-export const BACKEND = '/api'
+export const BACKEND =
+  typeof window !== 'undefined' && window.location.hostname.includes('banana.com')
+    ? 'https://api.banana.com'
+    : (import.meta.env.VITE_API_BASE_URL || '/api')
 
 export const mp4Qualities = ['best', '2160p', '1440p', '1080p', '720p', '480p', '360p'] as const
 export const mp3Qualities = ['320', '192', '128'] as const

@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 import requests
-from config import LYCHEE_HOST, LYCHEE_PORT
+from config import BANANA_HOST, BANANA_PORT
 from resilience import (
     ensure_ffmpeg_in_path,
     ensure_temp_storage,
@@ -48,8 +48,8 @@ class TestServerResilience(unittest.TestCase):
 
     def test_active_service_and_endpoints(self):
         # If server is running on 127.0.0.3:6060, test endpoints & CORS
-        base_url = f"http://{LYCHEE_HOST}:{LYCHEE_PORT}"
-        if not is_service_responding(LYCHEE_HOST, LYCHEE_PORT):
+        base_url = f"http://{BANANA_HOST}:{BANANA_PORT}"
+        if not is_service_responding(BANANA_HOST, BANANA_PORT):
             self.skipTest(f"Server is not running at {base_url}")
 
         # 1. Test /health

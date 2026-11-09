@@ -2,7 +2,7 @@ import argparse
 import logging
 import sys
 import uvicorn
-from config import LYCHEE_HOST, LYCHEE_PORT
+from config import BANANA_HOST, BANANA_PORT
 from resilience import (
     ensure_ffmpeg_in_path,
     is_service_responding,
@@ -13,13 +13,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("lychee.launcher")
+logger = logging.getLogger("banana.launcher")
 
 
 def start_server():
-    parser = argparse.ArgumentParser(description="Lychee Media Backend Launcher")
-    parser.add_argument("--host", default=LYCHEE_HOST, help="Host address to bind")
-    parser.add_argument("--port", type=int, default=LYCHEE_PORT, help="Port to listen on")
+    parser = argparse.ArgumentParser(description="Banana Media Backend Launcher")
+    parser.add_argument("--host", default=BANANA_HOST, help="Host address to bind")
+    parser.add_argument("--port", type=int, default=BANANA_PORT, help="Port to listen on")
     parser.add_argument("--no-reload", action="store_true", help="Disable auto-reloader")
     args, _ = parser.parse_known_args()
 
@@ -30,10 +30,10 @@ def start_server():
     else:
         logger.warning("FFmpeg was not located in standard paths; media conversions may be restricted.")
 
-    # 2. Check if a Lychee instance is already running and healthy
+    # 2. Check if a Banana instance is already running and healthy
     if is_service_responding(args.host, args.port):
         print("\n" + "=" * 65)
-        print("  LYCHEE MEDIA BACKEND IS ALREADY RUNNING & HEALTHY")
+        print("  BANANA MEDIA BACKEND IS ALREADY RUNNING & HEALTHY")
         print(f"  Service Address: http://{args.host}:{args.port}")
         print(f"  Health Status:   http://{args.host}:{args.port}/health")
         print(f"  API Docs/Root:   http://{args.host}:{args.port}/api")
@@ -46,7 +46,7 @@ def start_server():
     reload_enabled = not args.no_reload
 
     print("\n" + "=" * 65)
-    print("  STARTING LYCHEE MEDIA BACKEND")
+    print("  STARTING BANANA MEDIA BACKEND")
     print(f"  Target Host:     {bind_host}")
     print(f"  Target Port:     {bind_port}")
     print(f"  Auto-Reload:     {reload_enabled}")

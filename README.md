@@ -151,7 +151,7 @@ Banana is engineered from the ground up to respect user privacy:
 [ User Action: Download / Trim ]
        │
        ▼
-[ Atomic Job Sandbox: %TEMP%/lychee_media_temp/job_<uuid>/ ]
+[ Atomic Job Sandbox: %TEMP%/banana_media_temp/job_<uuid>/ ]
        │
        ├── Token generated (300-second TTL)
        ├── Direct download delivered to user

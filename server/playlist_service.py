@@ -11,7 +11,7 @@ from discover_service import extract_best_thumbnail
 from media_service import YDL_BASE_OPTS
 from validator import extract_playlist_id, is_valid_playlist_url, is_valid_youtube_url
 
-logger = logging.getLogger("lychee.playlist")
+logger = logging.getLogger("banana.playlist")
 
 
 def _sync_extract_playlist(url: str) -> Dict[str, Any]:

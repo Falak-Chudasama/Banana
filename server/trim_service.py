@@ -11,7 +11,7 @@ from media_service import YDL_BASE_OPTS, mp4_format_selector, pick_final_file
 from storage import PreparedJob, storage_manager
 from validator import is_valid_youtube_url, sanitize_filename
 
-logger = logging.getLogger("lychee.trim")
+logger = logging.getLogger("banana.trim")
 
 
 def format_seconds_to_timestamp(seconds: float) -> str:
@@ -74,7 +74,7 @@ def _sync_trim_media(
         raise HTTPException(status_code=500, detail="Media trimming failed. Please check timestamps.") from exc
 
     final_file = pick_final_file(workdir, output_format)
-    raw_title = info.get("title") or "lychee_trimmed"
+    raw_title = info.get("title") or "banana_trimmed"
     title = f"{sanitize_filename(raw_title)}_trim_{int(start_time)}s_{int(end_time)}s"
     return final_file, title
 

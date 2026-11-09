@@ -17,7 +17,7 @@ from config import (
 )
 from resilience import ensure_temp_storage
 
-logger = logging.getLogger("lychee.storage")
+logger = logging.getLogger("banana.storage")
 
 
 @dataclass
@@ -177,7 +177,7 @@ class MediaStorageManager:
 
     def purge_orphaned_directories(self) -> None:
         """
-        Scan temp_root for any leftover 'job_*' or 'lychee_*' directories.
+        Scan temp_root for any leftover 'job_*', 'banana_*', or legacy directories.
         Invoked on startup and periodically for abandoned files.
         """
         if not self.temp_root.exists():
@@ -186,7 +186,7 @@ class MediaStorageManager:
         now = time.time()
         try:
             for item in self.temp_root.iterdir():
-                if item.is_dir() and (item.name.startswith("job_") or item.name.startswith("lychee_")):
+                if item.is_dir() and (item.name.startswith("job_") or item.name.startswith("banana_")):
                     # Check if this item is currently in active memory
                     job_id = item.name.replace("job_", "")
                     if job_id in self._jobs:

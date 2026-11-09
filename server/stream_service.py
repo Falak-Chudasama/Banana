@@ -12,7 +12,7 @@ from config import MEDIA_DOWNLOAD_CHUNK_SIZE
 from media_service import YDL_BASE_OPTS
 from validator import is_valid_youtube_url
 
-logger = logging.getLogger("lychee.stream")
+logger = logging.getLogger("banana.stream")
 
 # In-memory stream cache
 # Key: (url, format) -> (direct_url, mime_type, total_size, http_headers, expires_at)
