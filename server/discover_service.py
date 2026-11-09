@@ -254,6 +254,18 @@ class DiscoverEngine:
             })
 
         # 3. Category-specific filtering & scoring
+        pref_delta = 0
+        if similarity_pref == "very_similar":
+            pref_delta = 2
+        elif similarity_pref == "experimental":
+            pref_delta = -4
+
+        def compute_match_score(base_peak: int, step_decay: float, index: int, is_same_artist: bool = False) -> int:
+            score = base_peak - (index * step_decay) + pref_delta
+            if is_same_artist:
+                score += 2
+            return int(max(60, min(99, round(score))))
+
         results = []
 
         if category == "same_vibe":
@@ -261,9 +273,10 @@ class DiscoverEngine:
                 c for c in cleaned_pool
                 if seed_artist not in c["artist"].lower() and c["artist"].lower() not in seed_artist
             ]
-            for item in filtered:
+            for idx, item in enumerate(filtered):
                 reason = f"Same vibe from alternative artist ({item['artist']})"
-                results.append({**item, "reason": reason})
+                match_score = compute_match_score(96, 0.8, idx)
+                results.append({**item, "reason": reason, "match_score": match_score})
 
         elif category == "hidden_gems":
             gems = [
@@ -271,14 +284,16 @@ class DiscoverEngine:
                 if seed_artist not in c["artist"].lower()
             ]
             ranked_gems = sorted(gems, key=lambda x: -x["raw_index"])
-            for item in ranked_gems:
+            for idx, item in enumerate(ranked_gems):
                 reason = "Hidden gem with acoustic match"
-                results.append({**item, "reason": reason})
+                match_score = compute_match_score(91, 0.7, idx)
+                results.append({**item, "reason": reason, "match_score": match_score})
 
         elif category == "trending":
-            for item in cleaned_pool:
+            for idx, item in enumerate(cleaned_pool):
                 reason = "Trending now on global music charts"
-                results.append({**item, "reason": reason})
+                match_score = compute_match_score(89, 0.5, idx)
+                results.append({**item, "reason": reason, "match_score": match_score})
 
         elif category == "explore":
             diverse = [
@@ -286,17 +301,22 @@ class DiscoverEngine:
                 if seed_artist not in c["artist"].lower()
             ]
             step = 2 if len(diverse) > 10 else 1
-            for item in diverse[::step]:
+            for idx, item in enumerate(diverse[::step]):
                 reason = "Musical crossover sharing production energy"
-                results.append({**item, "reason": reason})
+                match_score = compute_match_score(85, 0.7, idx)
+                results.append({**item, "reason": reason, "match_score": match_score})
 
         else:  # more_like_this
-            for item in cleaned_pool:
-                if seed_artist in item["artist"].lower():
+            for idx, item in enumerate(cleaned_pool):
+                is_same_artist = seed_artist in item["artist"].lower()
+                if is_same_artist:
                     reason = f"Matching track by {item['artist']}"
+                    base_peak = 98
                 else:
                     reason = "Similar musical style, tempo and energy"
-                results.append({**item, "reason": reason})
+                    base_peak = 95
+                match_score = compute_match_score(base_peak, 0.7, idx, is_same_artist)
+                results.append({**item, "reason": reason, "match_score": match_score})
 
         # 4. Apply session feedback
         if liked_ids:
@@ -306,13 +326,21 @@ class DiscoverEngine:
                 def feedback_priority(c):
                     return 0 if any(la in c["artist"].lower() for la in liked_artists) else 1
                 results.sort(key=feedback_priority)
+                # Boost match_score for liked artists/tracks by +3% (capped at 99)
+                for item in results:
+                    if any(la in item["artist"].lower() for la in liked_artists) or item["id"] in liked_set:
+                        item["match_score"] = min(99, item.get("match_score", 90) + 3)
 
         final_list = results[:min(limit, DISCOVER_MAX_RECOMMENDATIONS)]
 
         if len(final_list) < 5 and cleaned_pool:
             for extra in cleaned_pool:
                 if extra["id"] not in {r["id"] for r in final_list}:
-                    final_list.append({**extra, "reason": "Recommended by Banana Discover"})
+                    final_list.append({
+                        **extra,
+                        "reason": "Recommended by Banana Discover",
+                        "match_score": max(65, 82 - len(final_list)),
+                    })
                 if len(final_list) >= limit:
                     break
 

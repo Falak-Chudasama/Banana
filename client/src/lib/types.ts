@@ -10,6 +10,7 @@ export interface TrackItem {
   thumbnail?: string
   url: string
   reason?: string
+  match_score?: number
 }
 
 export interface MediaInfo {

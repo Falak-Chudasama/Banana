@@ -100,6 +100,7 @@ export function CollectionDrawer({
                       <p className="truncate text-sm font-bold text-stone-900 dark:text-stone-100">{track.title}</p>
                       <p className="truncate text-xs font-medium text-stone-500 dark:text-stone-400">
                         {track.artist} &middot; {formatDuration(track.duration)}
+                        {typeof track.match_score === 'number' ? ` · ${track.match_score}% match` : ''}
                       </p>
                     </div>
                   </div>

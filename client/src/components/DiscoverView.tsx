@@ -361,11 +361,37 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                       <p className="truncate text-xs font-medium text-stone-500 dark:text-stone-400">
                         {track.artist} {track.duration ? `· ${formatDuration(track.duration)}` : ''}
                       </p>
-                      {track.reason && (
-                        <span className="mt-1 inline-block text-[11px] font-semibold text-amber-800 bg-amber-100/70 dark:bg-amber-400/15 dark:text-amber-300 rounded-md px-2 py-0.5">
-                          {track.reason}
-                        </span>
-                      )}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {typeof track.match_score === 'number' && (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
+                              track.match_score >= 95
+                                ? 'bg-amber-400/20 text-amber-900 border-amber-400/50 dark:bg-amber-400/25 dark:text-amber-300 dark:border-amber-400/40'
+                                : track.match_score >= 85
+                                ? 'bg-amber-100/90 text-amber-800 border-amber-300/50 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25'
+                                : 'bg-stone-100 text-stone-700 border-stone-200 dark:bg-white/[0.06] dark:text-stone-300 dark:border-white/[0.08]'
+                            }`}
+                            title={`${track.match_score}% algorithmic similarity match`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                                track.match_score >= 95
+                                  ? 'bg-amber-500 dark:bg-amber-400 animate-pulse'
+                                  : track.match_score >= 85
+                                  ? 'bg-amber-500 dark:bg-amber-400'
+                                  : 'bg-stone-400 dark:bg-stone-500'
+                              }`}
+                            />
+                            {track.match_score}% Match
+                          </span>
+                        )}
+                        {track.reason && (
+                          <span className="inline-block text-[11px] font-semibold text-amber-900/80 bg-amber-100/60 dark:bg-white/[0.06] dark:text-stone-300 rounded-md px-2 py-0.5 border border-amber-200/50 dark:border-white/[0.06]">
+                            {track.reason}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

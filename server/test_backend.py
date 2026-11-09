@@ -97,6 +97,26 @@ class TestDiscoverUtilities(unittest.TestCase):
         self.assertEqual(len(same_vibe), 2)
         self.assertTrue(all("the weeknd" not in c["artist"].lower() for c in same_vibe))
 
+    def test_discover_recommendations_match_score(self):
+        seed = {"id": "seed1", "title": "Knee Socks", "artist": "Arctic Monkeys"}
+        recs = discover_engine._get_recommendations_sync(
+            seed=seed,
+            category="more_like_this",
+            similarity_pref="balanced",
+            popularity_pref="balanced",
+            diversity_pref="normal",
+            liked_ids=[],
+            disliked_ids=[],
+            known_ids=[],
+            limit=10,
+        )
+        if recs:
+            for r in recs:
+                self.assertIn("match_score", r)
+                self.assertIsInstance(r["match_score"], int)
+                self.assertGreaterEqual(r["match_score"], 60)
+                self.assertLessEqual(r["match_score"], 99)
+
 
 class TestTrimmingUtilities(unittest.TestCase):
     def test_format_seconds(self):
