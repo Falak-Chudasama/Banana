@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Lychee Media Backend",
+    title="Banana Media Backend",
     version="2.0.0",
     docs_url=None,
     redoc_url=None,
@@ -155,7 +155,7 @@ router = APIRouter()
 def root():
     return {
         "ok": True,
-        "name": "Lychee Media Backend",
+        "name": "Banana Media Backend",
         "version": "2.0.0",
         "endpoints": [
             "/health",

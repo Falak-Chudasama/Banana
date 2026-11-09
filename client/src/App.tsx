@@ -7,6 +7,7 @@ import { Select } from './components/Select'
 import { TrimPanel } from './components/TrimPanel'
 import {
   AlertIcon,
+  BananaMark,
   CheckCircleIcon,
   ClockIcon,
   CloseIcon,
@@ -14,10 +15,12 @@ import {
   DownloadIcon,
   ImageIcon,
   LinkIcon,
-  LycheeMark,
+  ListMusicIcon,
   MoonIcon,
+  PlayIcon,
   ScissorsIcon,
   SearchIcon,
+  SparklesIcon,
   SpinnerIcon,
   SunIcon,
   UserIcon,
@@ -45,7 +48,7 @@ export default function App() {
   // Dark/Light theme state - default dark
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lychee_theme')
+      const saved = localStorage.getItem('banana_theme') || localStorage.getItem('lychee_theme')
       if (saved === 'light' || saved === 'dark') return saved
     }
     return 'dark'
@@ -59,12 +62,12 @@ export default function App() {
       root.classList.remove('dark')
     }
     try {
-      localStorage.setItem('lychee_theme', theme)
+      localStorage.setItem('banana_theme', theme)
     } catch {}
 
     const meta = document.getElementById('meta-theme-color')
     if (meta) {
-      meta.setAttribute('content', theme === 'dark' ? '#0c0608' : '#fdf2f4')
+      meta.setAttribute('content', theme === 'dark' ? '#121310' : '#F8F9F5')
     }
   }, [theme])
 
@@ -166,7 +169,7 @@ export default function App() {
 
   const handleFetchInfo = async () => {
     if (!trimmedUrl) {
-      setError('Please paste a YouTube URL first.')
+      setError('Please enter a YouTube video or music link first.')
       return
     }
 
@@ -180,7 +183,7 @@ export default function App() {
     abortControllerRef.current = controller
 
     setStatus('fetching_info')
-    setStatusMessage('Reading YouTube metadata…')
+    setStatusMessage('Retrieving media details from YouTube…')
     setError('')
 
     try {
@@ -192,7 +195,7 @@ export default function App() {
       setStatus('idle')
       setStatusMessage('')
 
-      // Automatically configure in-player stream for instant preview
+      // Configure in-player stream for instant playback preview
       setPlayingTrack({
         url: trimmedUrl,
         title: data.title || 'Loaded Media',
@@ -211,7 +214,7 @@ export default function App() {
 
   const handleDownload = async () => {
     if (!trimmedUrl) {
-      setError('Please paste a YouTube URL first.')
+      setError('Please enter a YouTube link first.')
       return
     }
 
@@ -239,11 +242,11 @@ export default function App() {
         setPreparedSize(prepared.filesize)
       }
 
-      setStatusMessage('Media prepared. Initiating browser stream…')
+      setStatusMessage('Stream prepared. Starting download…')
       triggerBrowserNativeDownload(prepared.token, prepared.filename)
 
       setStatus('completed')
-      setStatusMessage('Download started. Media will auto-expire from server.')
+      setStatusMessage('Download started. Media will automatically expire from server cache.')
     } catch (err: unknown) {
       if (controller.signal.aborted) return
       setStatus('error')
@@ -298,98 +301,155 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col justify-between px-4 py-8 font-sans sm:px-8 lg:px-12">
-      {/* Top Header & Navigation */}
-      <header className="mx-auto flex w-full max-w-[1400px] items-center justify-between pb-8">
-        {/* Brand */}
-        <div className="flex items-center gap-3">
-          <LycheeMark className="h-10 w-10 shrink-0 drop-shadow-sm transition-transform hover:scale-105" />
-          <span className="font-display text-2xl font-black tracking-tight text-lychee-ink dark:text-white sm:text-3xl">
-            Lychee
+    <div className="flex min-h-screen flex-col justify-between font-sans selection:bg-amber-200 selection:text-stone-900 dark:selection:bg-amber-400/30 dark:selection:text-amber-100">
+      {/* 
+        DESKTOP NAVIGATION: Floating Glass Capsule (>= 640px)
+        Follows Kiwi Dual-Mode Navigation Architecture
+      */}
+      <header className="sticky top-4 z-40 mx-auto hidden w-full max-w-4xl px-4 sm:block">
+        <div className="glass-capsule flex items-center justify-between gap-3 rounded-full px-5 py-2.5 shadow-floating">
+          {/* Brand Logo & Wordmark */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-black/[0.06] bg-white p-1.5 shadow-2xs dark:border-white/[0.08] dark:bg-stone-800">
+              <BananaMark className="h-6 w-auto drop-shadow-sm transition-transform hover:scale-105" />
+            </div>
+            <span className="font-display text-base font-extrabold tracking-tight text-stone-900 dark:text-white">
+              Banana
+            </span>
+          </div>
+
+          {/* Primary Navigation Pill Links */}
+          <nav aria-label="Main Navigation" className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('download')}
+              className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'download'
+                  ? 'bg-stone-900 text-white shadow-xs dark:bg-stone-100 dark:text-stone-900'
+                  : 'text-stone-600 hover:bg-stone-100/70 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
+              }`}
+            >
+              <DownloadIcon className="h-4 w-4" />
+              <span>Download</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('discover')}
+              className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'discover'
+                  ? 'bg-stone-900 text-white shadow-xs dark:bg-stone-100 dark:text-stone-900'
+                  : 'text-stone-600 hover:bg-stone-100/70 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
+              }`}
+            >
+              <SparklesIcon className="h-4 w-4" />
+              <span>Discover</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('playlists')}
+              className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'playlists'
+                  ? 'bg-stone-900 text-white shadow-xs dark:bg-stone-100 dark:text-stone-900'
+                  : 'text-stone-600 hover:bg-stone-100/70 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
+              }`}
+            >
+              <ListMusicIcon className="h-4 w-4" />
+              <span>Playlists</span>
+            </button>
+          </nav>
+
+          {/* Right Controls: Collection Drawer + Theme Switcher */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsCollectionOpen(true)}
+              className="focus-ring flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/80 transition"
+              title="Open session collection"
+              aria-label="Open session collection"
+            >
+              <CollectionIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              <span>Collection</span>
+              {collection.length > 0 && (
+                <span className="flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white dark:bg-amber-400 dark:text-stone-950">
+                  {collection.length}
+                </span>
+              )}
+            </button>
+
+            <div className="h-4 w-px bg-stone-200 dark:bg-stone-700 mx-1" aria-hidden="true" />
+
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="focus-ring flex h-8 w-8 items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? (
+                <SunIcon className="h-4 w-4 text-amber-400 transition-transform duration-200 hover:rotate-45" />
+              ) : (
+                <MoonIcon className="h-4 w-4 text-stone-600 transition-transform duration-200 hover:-rotate-12" />
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* 
+        MOBILE TOP BAR: Sticky Top Header (< 640px)
+      */}
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/[0.05] bg-white/95 px-4 py-3 backdrop-blur-md dark:border-white/[0.08] dark:bg-[#181915]/95 sm:hidden transition-colors duration-200">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.06] bg-white p-1 shadow-2xs dark:border-white/[0.08] dark:bg-stone-800">
+            <BananaMark className="h-5 w-auto" />
+          </div>
+          <span className="font-display text-base font-extrabold tracking-tight text-stone-900 dark:text-white">
+            Banana
           </span>
         </div>
 
-        {/* Primary Three-Item Navigation */}
-        <nav
-          aria-label="Main Navigation"
-          className="flex items-center rounded-2xl border border-white/80 bg-white/80 p-1.5 shadow-glass backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-        >
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setActiveTab('download')}
-            className={`rounded-xl px-5 sm:px-7 py-2.5 sm:py-3 text-sm sm:text-base font-bold transition ${
-              activeTab === 'download'
-                ? 'bg-lychee-shell text-white shadow-sm'
-                : 'text-lychee-ink/75 hover:bg-white/60 hover:text-lychee-ink dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
-            }`}
+            onClick={() => setIsCollectionOpen(true)}
+            className="focus-ring relative flex h-9 w-9 items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
+            title="Collection"
+            aria-label="Open collection"
           >
-            Download
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('discover')}
-            className={`rounded-xl px-5 sm:px-7 py-2.5 sm:py-3 text-sm sm:text-base font-bold transition ${
-              activeTab === 'discover'
-                ? 'bg-lychee-shell text-white shadow-sm'
-                : 'text-lychee-ink/75 hover:bg-white/60 hover:text-lychee-ink dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
-            }`}
-          >
-            Discover
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('playlists')}
-            className={`rounded-xl px-5 sm:px-7 py-2.5 sm:py-3 text-sm sm:text-base font-bold transition ${
-              activeTab === 'playlists'
-                ? 'bg-lychee-shell text-white shadow-sm'
-                : 'text-lychee-ink/75 hover:bg-white/60 hover:text-lychee-ink dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
-            }`}
-          >
-            Playlists
-          </button>
-        </nav>
-
-        {/* Top Controls: Theme Switcher & Temporary Collection Drawer trigger */}
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="focus-ring flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-2xl border border-white/80 bg-white/80 text-lychee-seed-700 shadow-glass backdrop-blur-xl transition hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/[0.06] dark:text-amber-400 dark:hover:bg-white/10"
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? (
-              <SunIcon className="h-5 w-5 text-amber-400 transition-transform duration-300 hover:rotate-45" />
-            ) : (
-              <MoonIcon className="h-5 w-5 text-lychee-shell transition-transform duration-300 hover:-rotate-12" />
+            <CollectionIcon className="h-5 w-5 text-amber-500 dark:text-amber-400" />
+            {collection.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white dark:bg-amber-400 dark:text-stone-950">
+                {collection.length}
+              </span>
             )}
           </button>
 
           <button
             type="button"
-            onClick={() => setIsCollectionOpen(true)}
-            className="flex items-center gap-2.5 rounded-2xl border border-white/80 bg-white/80 px-4 sm:px-5 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-lychee-seed-700 shadow-glass backdrop-blur-xl transition hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/10 dark:hover:text-white"
-            title="Open session collection"
+            onClick={toggleTheme}
+            className="focus-ring flex h-9 w-9 items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            <CollectionIcon className="h-5 w-5 text-lychee-shell dark:text-lychee-shell-400" />
-            <span className="hidden sm:inline">Collection</span>
-            {collection.length > 0 && (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-lychee-shell text-xs font-bold text-white">
-                {collection.length}
-              </span>
+            {theme === 'dark' ? (
+              <SunIcon className="h-5 w-5 text-amber-400" />
+            ) : (
+              <MoonIcon className="h-5 w-5 text-stone-600" />
             )}
           </button>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="mx-auto my-auto w-full max-w-[1400px]">
+      <main className="mx-auto w-full max-w-4xl px-4 py-6 pb-28 sm:py-8 sm:pb-16 flex-1">
         {/* Global Floating Player (when a track is selected for preview) */}
         {playingTrack && (
-          <div className="mb-8">
+          <div className="mb-7 animate-fade-in">
             <div className="flex items-center justify-between pb-2 px-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-lychee-seed-500 dark:text-lychee-seed-300">
-                Now Playing
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                Now Playing Preview
               </span>
               <button
                 type="button"
@@ -397,7 +457,7 @@ export default function App() {
                   setPlayingTrack(null)
                   setIsTrimOpen(false)
                 }}
-                className="text-xs font-bold text-lychee-ink/50 hover:text-lychee-shell dark:text-white/50 dark:hover:text-lychee-shell-400 transition"
+                className="focus-ring rounded-md px-2 py-0.5 text-xs font-semibold text-stone-400 hover:text-stone-700 dark:text-stone-500 dark:hover:text-stone-200 transition"
               >
                 Close Player
               </button>
@@ -440,322 +500,382 @@ export default function App() {
 
         {/* Tab 1: Download Screen */}
         {activeTab === 'download' && (
-          <div className="grid gap-8 lg:grid-cols-[1.18fr_0.82fr]">
-            {/* Action Panel */}
-            <section
-              aria-label="Media Downloader Controls"
-              className="glass-panel rounded-3xl p-6 sm:p-10 shadow-glass"
-            >
-              <div>
-                <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-lychee-ink dark:text-white">
-                  Downloader
-                </h1>
-              </div>
+          <div className="space-y-6">
+            {/* Page Header Block following Kiwi PageShell style */}
+            <div className="mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-sans">
+                Ephemeral Media Extractor
+              </span>
+              <h1 className="mt-1 font-sans text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
+                Downloader
+              </h1>
+              <p className="mt-1.5 text-sm sm:text-base text-stone-600 dark:text-stone-400 font-sans">
+                Extract high-fidelity MP4 video and MP3 audio directly to your device with zero persistent storage.
+              </p>
+            </div>
 
-              {/* URL Input */}
-              <div className="mt-6">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="media-url" className="text-xs font-bold uppercase tracking-wider text-lychee-ink/70 dark:text-white/70">
-                    YouTube URL
-                  </label>
-                  {trimmedUrl && (
-                    <span
-                      className={`text-xs font-semibold transition ${
-                        isUrlValid ? 'text-emerald-700 dark:text-emerald-400' : 'text-lychee-shell dark:text-lychee-shell-400'
-                      }`}
-                    >
-                      {isUrlValid ? 'Valid Link' : 'Invalid Link'}
-                    </span>
-                  )}
-                </div>
-
-                <div className="relative mt-2">
-                  <LinkIcon className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-lychee-seed-500 dark:text-lychee-seed-300" />
-                  <input
-                    id="media-url"
-                    type="url"
-                    autoComplete="off"
-                    spellCheck="false"
-                    value={url}
-                    onChange={(e) => handleUrlChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !isBusy) {
-                        e.preventDefault()
-                        if (!title) {
-                          handleFetchInfo()
-                        } else {
-                          handleDownload()
-                        }
-                      }
-                    }}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className="focus-ring h-14 sm:h-16 w-full rounded-2xl border border-white/70 bg-white/80 pl-14 pr-12 text-base sm:text-lg text-lychee-ink placeholder:text-lychee-ink/35 transition hover:bg-white/95 focus:bg-white shadow-sm dark:border-white/10 dark:bg-black/40 dark:text-white dark:placeholder:text-white/30 dark:hover:bg-black/55 dark:focus:bg-black/60"
-                  />
-                  {url && (
-                    <button
-                      type="button"
-                      onClick={handleClearUrl}
-                      aria-label="Clear URL"
-                      className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-lychee-ink/40 hover:bg-lychee-membrane-100 hover:text-lychee-ink dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-white"
-                    >
-                      <CloseIcon className="h-5 w-5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Format & Quality Configuration */}
-              <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+              {/* Action Panel */}
+              <section
+                aria-label="Media Downloader Controls"
+                className="rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 shadow-soft dark:border-white/[0.08] dark:bg-[#181915]"
+              >
+                {/* URL Input */}
                 <div>
-                  <span className="block text-xs font-bold uppercase tracking-wider text-lychee-ink/70 dark:text-white/70">
-                    Format
-                  </span>
-                  <div
-                    role="radiogroup"
-                    aria-label="Media Format"
-                    className="glass-card mt-2 grid h-14 sm:h-16 grid-cols-2 gap-2 rounded-2xl p-1.5"
-                  >
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={format === 'mp4'}
-                      onClick={() => handleFormatChange('mp4')}
-                      className={`focus-ring flex items-center justify-center rounded-xl text-base font-bold transition ${
-                        format === 'mp4'
-                          ? 'bg-lychee-shell text-white shadow-sm'
-                          : 'text-lychee-ink/75 hover:bg-white/60 hover:text-lychee-ink dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
-                      }`}
+                  <div className="flex items-center justify-between">
+                    <label
+                      htmlFor="media-url"
+                      className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400"
                     >
-                      MP4 Video
-                    </button>
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={format === 'mp3'}
-                      onClick={() => handleFormatChange('mp3')}
-                      className={`focus-ring flex items-center justify-center rounded-xl text-base font-bold transition ${
-                        format === 'mp3'
-                          ? 'bg-lychee-shell text-white shadow-sm'
-                          : 'text-lychee-ink/75 hover:bg-white/60 hover:text-lychee-ink dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
-                      }`}
-                    >
-                      MP3 Audio
-                    </button>
+                      YouTube URL
+                    </label>
+                    {trimmedUrl && (
+                      <span
+                        className={`text-xs font-semibold transition ${
+                          isUrlValid
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : 'text-amber-600 dark:text-amber-400'
+                        }`}
+                      >
+                        {isUrlValid ? 'Valid Link' : 'Invalid Link'}
+                      </span>
+                    )}
                   </div>
-                </div>
 
-                <Select
-                  label="Target Quality"
-                  value={quality}
-                  options={qualityOptions}
-                  onChange={(val) => {
-                    setQuality(val)
-                    if (status === 'completed') setStatus('idle')
-                  }}
-                  disabled={isBusy}
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="mt-8 flex flex-col gap-3.5 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={handleFetchInfo}
-                  disabled={!trimmedUrl || isBusy}
-                  className="focus-ring inline-flex h-14 sm:h-16 items-center justify-center gap-2.5 rounded-2xl border border-white/80 bg-white/80 px-6 text-base font-bold text-lychee-seed-700 shadow-glass transition hover:bg-white hover:text-lychee-ink active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/15 dark:hover:text-white"
-                >
-                  {status === 'fetching_info' ? (
-                    <SpinnerIcon className="h-5 w-5 animate-spin text-lychee-shell dark:text-lychee-shell-400" />
-                  ) : (
-                    <SearchIcon className="h-5 w-5" />
-                  )}
-                  <span>{status === 'fetching_info' ? 'Checking…' : 'Load Details'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  disabled={!trimmedUrl || isBusy}
-                  className="focus-ring inline-flex h-14 sm:h-16 flex-1 items-center justify-center gap-2.5 rounded-2xl bg-lychee-shell px-8 text-base sm:text-lg font-bold text-white shadow-soft transition hover:bg-lychee-shell-600 active:scale-95 active:bg-lychee-shell-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {status === 'preparing' ? (
-                    <SpinnerIcon className="h-5 w-5 animate-spin text-white" />
-                  ) : (
-                    <DownloadIcon className="h-5 w-5" />
-                  )}
-                  <span>
-                    {status === 'preparing'
-                      ? 'Processing…'
-                      : format === 'mp4'
-                        ? 'Download MP4'
-                        : 'Download MP3'}
-                  </span>
-                </button>
-
-                {title && (
-                  <button
-                    type="button"
-                    onClick={() => setIsTrimOpen(!isTrimOpen)}
-                    className="focus-ring inline-flex h-14 sm:h-16 items-center justify-center gap-2 rounded-2xl border border-white/80 bg-white/80 px-5 text-sm sm:text-base font-bold text-lychee-seed-700 shadow-glass hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/15 dark:hover:text-white"
-                    title="Trim media clip"
-                  >
-                    <ScissorsIcon className="h-5 w-5 text-lychee-shell dark:text-lychee-shell-400" />
-                    <span>Trim</span>
-                  </button>
-                )}
-
-                {isBusy && (
-                  <button
-                    type="button"
-                    onClick={cancelActiveRequest}
-                    className="focus-ring inline-flex h-14 sm:h-16 items-center justify-center rounded-2xl border border-lychee-border bg-white/80 px-5 text-sm font-bold text-lychee-seed-700 transition hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/10"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-
-              {/* Status updates / Active progress banner */}
-              {statusMessage && (
-                <div
-                  className={`animate-fade-in mt-5 flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm font-semibold ${
-                    status === 'completed'
-                      ? 'border border-emerald-200 bg-emerald-50/80 text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300'
-                      : 'border border-lychee-border bg-lychee-membrane-100/80 text-lychee-seed-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-lychee-seed-300'
-                  }`}
-                >
-                  {status === 'completed' ? (
-                    <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  ) : (
-                    <SpinnerIcon className="h-5 w-5 shrink-0 animate-spin text-lychee-shell dark:text-lychee-shell-400" />
-                  )}
-                  <span>{statusMessage}</span>
-                </div>
-              )}
-
-              {/* Error banner */}
-              {error && (
-                <div
-                  role="alert"
-                  className="animate-fade-in mt-5 flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 dark:border-rose-900/50 dark:bg-rose-950/40 px-5 py-4 text-sm font-medium text-rose-800 dark:text-rose-200"
-                >
-                  <div className="flex items-start gap-2.5">
-                    <AlertIcon className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
-                    <span>{error}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setError('')}
-                    aria-label="Dismiss error"
-                    className="text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-200"
-                  >
-                    <CloseIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-
-              {/* Trimming Panel (when toggled from download view) */}
-              {isTrimOpen && trimmedUrl && (
-                <TrimPanel
-                  url={trimmedUrl}
-                  duration={duration}
-                  onClose={() => setIsTrimOpen(false)}
-                />
-              )}
-            </section>
-
-            {/* Media Preview Card */}
-            <aside
-              aria-label="Media Preview"
-              className="glass-panel flex flex-col justify-between rounded-3xl p-6 sm:p-10 shadow-glass"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-lychee-ink/70 dark:text-white/70">
-                    Preview
-                  </span>
-                  {duration !== null && (
-                    <span className="rounded-xl bg-lychee-membrane-100 dark:bg-white/10 px-3 py-1 text-xs font-bold text-lychee-seed-700 dark:text-lychee-seed-300">
-                      {formatDuration(duration)}
-                    </span>
-                  )}
-                </div>
-
-                {thumbnail ? (
-                  <div className="relative mt-5 aspect-video w-full overflow-hidden rounded-2xl border border-white/60 dark:border-white/10 bg-black/10 shadow-md">
-                    <img
-                      src={thumbnail}
-                      onError={(e) => {
-                        const vid = trimmedUrl.includes('v=')
-                          ? trimmedUrl.split('v=')[1]?.split('&')[0]
-                          : trimmedUrl.split('/').pop()
-                        if (vid) {
-                          e.currentTarget.src = `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`
+                  <div className="relative mt-2">
+                    <LinkIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400 dark:text-stone-500" />
+                    <input
+                      id="media-url"
+                      type="url"
+                      autoComplete="off"
+                      spellCheck="false"
+                      value={url}
+                      onChange={(e) => handleUrlChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isBusy) {
+                          e.preventDefault()
+                          if (!title) {
+                            handleFetchInfo()
+                          } else {
+                            handleDownload()
+                          }
                         }
                       }}
-                      alt={title || 'Media thumbnail'}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover"
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      className="focus-ring h-12 sm:h-14 w-full rounded-xl border border-stone-200/90 bg-stone-50/60 pl-11 pr-10 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 shadow-2xs transition hover:bg-stone-50 focus:bg-white dark:border-white/[0.08] dark:bg-[#121310]/70 dark:text-stone-100 dark:placeholder:text-stone-500 dark:hover:bg-[#121310] dark:focus:bg-[#121310]"
                     />
+                    {url && (
+                      <button
+                        type="button"
+                        onClick={handleClearUrl}
+                        aria-label="Clear URL"
+                        className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
+                      >
+                        <CloseIcon className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <div className="glass-card mt-5 flex aspect-video flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-lychee-border dark:border-white/15 text-center text-sm font-medium text-lychee-ink/40 dark:text-white/40">
-                    <ImageIcon className="h-10 w-10 text-lychee-seed-300 dark:text-white/20" />
-                    <span>Ready for media</span>
+                </div>
+
+                {/* Format & Quality Configuration */}
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                      Output Format
+                    </span>
+                    <div
+                      role="radiogroup"
+                      aria-label="Media Format"
+                      className="mt-2 grid h-12 sm:h-14 grid-cols-2 gap-1 rounded-xl border border-stone-200/90 bg-stone-100/70 p-1 dark:border-white/[0.08] dark:bg-[#1C1D18]"
+                    >
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={format === 'mp4'}
+                        onClick={() => handleFormatChange('mp4')}
+                        className={`focus-ring flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold transition ${
+                          format === 'mp4'
+                            ? 'bg-white text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
+                            : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+                        }`}
+                      >
+                        MP4 Video
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={format === 'mp3'}
+                        onClick={() => handleFormatChange('mp3')}
+                        className={`focus-ring flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold transition ${
+                          format === 'mp3'
+                            ? 'bg-white text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
+                            : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+                        }`}
+                      >
+                        MP3 Audio
+                      </button>
+                    </div>
+                  </div>
+
+                  <Select
+                    label="Target Quality"
+                    value={quality}
+                    options={qualityOptions}
+                    onChange={(val) => {
+                      setQuality(val)
+                      if (status === 'completed') setStatus('idle')
+                    }}
+                    disabled={isBusy}
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleFetchInfo}
+                    disabled={!trimmedUrl || isBusy}
+                    className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-xl border border-stone-200/90 bg-white px-5 text-sm font-bold text-stone-700 shadow-2xs transition hover:bg-stone-50 hover:text-stone-900 active:scale-95 disabled:cursor-not-allowed disabled:border-stone-200/60 disabled:bg-stone-100/60 disabled:text-stone-400 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white dark:disabled:border-white/[0.04] dark:disabled:bg-stone-900/40 dark:disabled:text-stone-600"
+                  >
+                    {status === 'fetching_info' ? (
+                      <SpinnerIcon className="h-4 w-4 animate-spin text-amber-500 dark:text-amber-400" />
+                    ) : (
+                      <SearchIcon className="h-4 w-4" />
+                    )}
+                    <span>{status === 'fetching_info' ? 'Checking…' : 'Load Details'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    disabled={!trimmedUrl || isBusy}
+                    className="focus-ring inline-flex h-12 sm:h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 text-sm sm:text-base font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300 dark:disabled:bg-stone-800/80 dark:disabled:text-stone-600"
+                  >
+                    {status === 'preparing' ? (
+                      <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
+                    ) : (
+                      <DownloadIcon className="h-4 w-4" />
+                    )}
+                    <span>
+                      {status === 'preparing'
+                        ? 'Processing…'
+                        : format === 'mp4'
+                          ? 'Download MP4'
+                          : 'Download MP3'}
+                    </span>
+                  </button>
+
+                  {title && (
+                    <button
+                      type="button"
+                      onClick={() => setIsTrimOpen(!isTrimOpen)}
+                      className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-700 shadow-2xs hover:bg-stone-50 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white"
+                      title="Trim media clip"
+                    >
+                      <ScissorsIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                      <span>Trim</span>
+                    </button>
+                  )}
+
+                  {isBusy && (
+                    <button
+                      type="button"
+                      onClick={cancelActiveRequest}
+                      className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-600 transition hover:bg-stone-50 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-400 dark:hover:bg-[#20211C]"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+
+                {/* Status updates / Active progress banner */}
+                {statusMessage && (
+                  <div
+                    className={`animate-fade-in mt-4 flex items-center gap-2.5 rounded-xl px-4 py-3 text-xs sm:text-sm font-semibold ${
+                      status === 'completed'
+                        ? 'border border-emerald-200 bg-emerald-50/80 text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300'
+                        : 'border border-amber-200/80 bg-amber-50/70 text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200'
+                    }`}
+                  >
+                    {status === 'completed' ? (
+                      <CheckCircleIcon className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <SpinnerIcon className="h-4 w-4 shrink-0 animate-spin text-amber-500 dark:text-amber-400" />
+                    )}
+                    <span>{statusMessage}</span>
                   </div>
                 )}
 
-                <div className="mt-6 space-y-4">
-                  <div>
-                    <h3 className="line-clamp-2 text-base sm:text-lg font-bold text-lychee-ink dark:text-white">
-                      {title || 'No media loaded'}
-                    </h3>
+                {/* Error banner */}
+                {error && (
+                  <div
+                    role="alert"
+                    className="animate-fade-in mt-4 flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50/90 dark:border-rose-900/40 dark:bg-rose-950/40 px-4 py-3 text-xs sm:text-sm text-rose-800 dark:text-rose-200"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <AlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                      <span>{error}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setError('')}
+                      aria-label="Dismiss error"
+                      className="text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-200"
+                    >
+                      <CloseIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Trimming Panel (when toggled from download view) */}
+                {isTrimOpen && trimmedUrl && (
+                  <TrimPanel
+                    url={trimmedUrl}
+                    duration={duration}
+                    onClose={() => setIsTrimOpen(false)}
+                  />
+                )}
+              </section>
+
+              {/* Media Preview Card */}
+              <aside
+                aria-label="Media Preview"
+                className="rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-7 shadow-soft dark:border-white/[0.08] dark:bg-[#181915] flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                      Media Preview
+                    </span>
+                    {duration !== null && (
+                      <span className="rounded-full bg-stone-100 dark:bg-stone-800 px-2.5 py-0.5 font-mono text-xs font-bold text-stone-700 dark:text-stone-300">
+                        {formatDuration(duration)}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3.5">
-                    <div className="glass-card rounded-2xl p-4">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-lychee-seed-500 dark:text-lychee-seed-300">
-                        <UserIcon className="h-3.5 w-3.5" />
-                        Channel
-                      </div>
-                      <p className="mt-1 truncate text-sm font-bold text-lychee-ink dark:text-white">
-                        {uploader || '—'}
-                      </p>
+                  {thumbnail ? (
+                    <div className="group relative mt-4 aspect-video w-full overflow-hidden rounded-xl border border-stone-200/60 bg-stone-100 shadow-2xs dark:border-white/[0.06] dark:bg-black/30">
+                      <img
+                        src={thumbnail}
+                        onError={(e) => {
+                          const vid = trimmedUrl.includes('v=')
+                            ? trimmedUrl.split('v=')[1]?.split('&')[0]
+                            : trimmedUrl.split('/').pop()
+                          if (vid) {
+                            e.currentTarget.src = `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`
+                          }
+                        }}
+                        alt={title || 'Media thumbnail'}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-102"
+                      />
+                      {/* Quick Play Trigger Overlay */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlayingTrack({
+                            url: trimmedUrl,
+                            title: title || 'Media Track',
+                            artist: uploader,
+                            thumbnail,
+                          })
+                        }}
+                        className="focus-ring absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100"
+                        title="Play in preview player"
+                      >
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-stone-900 shadow-soft transition transform group-hover:scale-105 dark:bg-stone-900 dark:text-white">
+                          <PlayIcon className="h-5 w-5 translate-x-0.5" />
+                        </div>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex aspect-video flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-stone-300/80 bg-stone-50/50 text-center text-xs font-medium text-stone-400 dark:border-stone-700/80 dark:bg-[#121310]/50 dark:text-stone-500">
+                      <ImageIcon className="h-8 w-8 text-stone-300 dark:text-stone-600" />
+                      <span>Paste a link to load preview</span>
+                    </div>
+                  )}
+
+                  <div className="mt-4 space-y-3.5">
+                    <div>
+                      <h3 className="line-clamp-2 font-sans text-base font-bold text-stone-900 dark:text-stone-50">
+                        {title || 'No media loaded'}
+                      </h3>
                     </div>
 
-                    <div className="glass-card rounded-2xl p-4">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-lychee-seed-500 dark:text-lychee-seed-300">
-                        <ClockIcon className="h-3.5 w-3.5" />
-                        {preparedSize ? 'Size' : 'Duration'}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-3 dark:border-white/[0.06] dark:bg-[#1C1D18]">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                          <UserIcon className="h-3.5 w-3.5" />
+                          Channel
+                        </div>
+                        <p className="mt-1 truncate text-xs sm:text-sm font-bold text-stone-800 dark:text-stone-200">
+                          {uploader || '—'}
+                        </p>
                       </div>
-                      <p className="mt-1 text-sm font-bold text-lychee-ink dark:text-white">
-                        {preparedSize ? formatFileSize(preparedSize) : formatDuration(duration)}
-                      </p>
+
+                      <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-3 dark:border-white/[0.06] dark:bg-[#1C1D18]">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                          <ClockIcon className="h-3.5 w-3.5" />
+                          {preparedSize ? 'Size' : 'Duration'}
+                        </div>
+                        <p className="mt-1 font-mono text-xs sm:text-sm font-bold text-stone-800 dark:text-stone-200">
+                          {preparedSize ? formatFileSize(preparedSize) : formatDuration(duration)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </aside>
+              </aside>
+            </div>
           </div>
         )}
 
-        {/* Tab 2: Lychee Discover Screen */}
+        {/* Tab 2: Discover Screen */}
         {activeTab === 'discover' && (
-          <DiscoverView
-            onPlayTrack={handlePlayTrackFromExternal}
-            onDownloadTrack={handleDownloadTrackFromExternal}
-            onAddToCollection={addToCollection}
-          />
+          <div className="space-y-6">
+            <div className="mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-sans">
+                Algorithmic Exploration
+              </span>
+              <h1 className="mt-1 font-sans text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
+                Music Discovery
+              </h1>
+              <p className="mt-1.5 text-sm sm:text-base text-stone-600 dark:text-stone-400 font-sans">
+                Explore deep cuts, hidden gems, and soundalikes tuned with granular similarity and diversity preferences.
+              </p>
+            </div>
+
+            <DiscoverView
+              onPlayTrack={handlePlayTrackFromExternal}
+              onDownloadTrack={handleDownloadTrackFromExternal}
+              onAddToCollection={addToCollection}
+            />
+          </div>
         )}
 
         {/* Tab 3: Playlists Screen */}
         {activeTab === 'playlists' && (
-          <PlaylistView
-            onPlayTrack={handlePlayTrackFromExternal}
-            onDownloadTrack={handleDownloadTrackFromExternal}
-            onAddMultipleToCollection={addMultipleToCollection}
-          />
+          <div className="space-y-6">
+            <div className="mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-sans">
+                Batch Track Extraction
+              </span>
+              <h1 className="mt-1 font-sans text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
+                Playlists
+              </h1>
+              <p className="mt-1.5 text-sm sm:text-base text-stone-600 dark:text-stone-400 font-sans">
+                Import YouTube or YouTube Music playlists for batch collection, high-speed sequential download, and playback.
+              </p>
+            </div>
+
+            <PlaylistView
+              onPlayTrack={handlePlayTrackFromExternal}
+              onDownloadTrack={handleDownloadTrackFromExternal}
+              onAddMultipleToCollection={addMultipleToCollection}
+            />
+          </div>
         )}
       </main>
 
@@ -770,13 +890,62 @@ export default function App() {
         onDownloadTrack={handleDownloadTrackFromExternal}
       />
 
+      {/* 
+        MOBILE BOTTOM DOCK: Fixed Floating Pill (< 640px)
+        Follows Kiwi Dual-Mode Navigation Architecture
+      */}
+      <div className="fixed bottom-3 inset-x-3 z-50 grid grid-cols-3 gap-1 rounded-2xl border border-black/[0.08] bg-white/95 py-1.5 px-1.5 shadow-lift backdrop-blur-lg dark:border-white/[0.08] dark:bg-[#181915]/95 sm:hidden transition-colors duration-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab('download')}
+          className={`flex flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition ${
+            activeTab === 'download'
+              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+              : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+          }`}
+        >
+          <DownloadIcon className="h-5 w-5 shrink-0" />
+          <span>Download</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('discover')}
+          className={`flex flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition ${
+            activeTab === 'discover'
+              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+              : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+          }`}
+        >
+          <SparklesIcon className="h-5 w-5 shrink-0" />
+          <span>Discover</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('playlists')}
+          className={`flex flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition ${
+            activeTab === 'playlists'
+              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+              : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+          }`}
+        >
+          <ListMusicIcon className="h-5 w-5 shrink-0" />
+          <span>Playlists</span>
+        </button>
+      </div>
+
       {/* Clean Modern Minimal Footer */}
-      <footer className="mx-auto mt-12 flex w-full max-w-[1400px] items-center justify-between border-t border-lychee-border/25 dark:border-white/10 pt-6 text-sm text-lychee-seed-500/80 dark:text-white/40">
-        <div className="flex items-center gap-2 font-display text-sm font-bold text-lychee-ink/70 dark:text-white/80">
-          <LycheeMark className="h-5 w-5" />
-          <span>Lychee</span>
+      <footer className="mx-auto mt-10 flex w-full max-w-4xl items-center justify-between border-t border-stone-200/80 dark:border-white/[0.08] px-4 py-6 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2">
+          <BananaMark className="h-4 w-auto" />
+          <span className="font-display font-bold text-stone-800 dark:text-stone-200">Banana</span>
+          <span>&middot;</span>
+          <span>Fast, Private Media Utility</span>
         </div>
-        <span className="text-xs text-lychee-ink/40 dark:text-white/40 font-medium">Ephemeral Media Utility</span>
+        <span className="font-medium text-stone-400 dark:text-stone-500 hidden sm:inline">
+          Zero persistent storage · Ephemeral extraction
+        </span>
       </footer>
     </div>
   )

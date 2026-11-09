@@ -312,7 +312,7 @@ class DiscoverEngine:
         if len(final_list) < 5 and cleaned_pool:
             for extra in cleaned_pool:
                 if extra["id"] not in {r["id"] for r in final_list}:
-                    final_list.append({**extra, "reason": "Recommended by Lychee Discover"})
+                    final_list.append({**extra, "reason": "Recommended by Banana Discover"})
                 if len(final_list) >= limit:
                     break
 

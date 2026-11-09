@@ -1,6 +1,6 @@
-# Lychee Client
+# Banana Client
 
-Minimal React + TypeScript + Tailwind frontend for the local Lychee backend.
+Apple-grade React + TypeScript + Tailwind frontend for the Banana ephemeral media utility.
 
 ## Dev
 

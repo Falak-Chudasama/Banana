@@ -32,9 +32,10 @@
 @layer base {
   :root {
     font-family: 'Host Grotesk', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    color: #3D1522;
+    color: #1C1917;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.011em;
   }
 
   html.dark {
@@ -42,7 +43,7 @@
   }
 
   .dark {
-    color: #fceef1;
+    color: #FAFAF9;
   }
 
   html,
@@ -54,24 +55,22 @@
   body {
     margin: 0;
     min-width: 320px;
-    background-color: #fdf2f4;
+    background-color: #F8F9F5;
     background-image:
-      radial-gradient(circle at 10% 8%, rgba(200, 29, 58, 0.12), transparent 42%),
-      radial-gradient(circle at 90% 12%, rgba(139, 94, 60, 0.08), transparent 36%),
-      radial-gradient(circle at 50% 92%, rgba(200, 29, 58, 0.07), transparent 48%),
-      linear-gradient(180deg, #fdf3f5 0%, #fffbfc 50%, #ffffff 100%);
+      radial-gradient(circle at 50% -12%, rgba(252, 221, 130, 0.16), transparent 50%),
+      radial-gradient(circle at 90% 20%, rgba(249, 176, 74, 0.06), transparent 40%),
+      linear-gradient(180deg, #F8F9F5 0%, #FAF8F5 50%, #F5F4EE 100%);
     background-attachment: fixed;
     background-repeat: no-repeat;
-    transition: background-color 0.25s ease, color 0.25s ease;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   .dark body {
-    background-color: #0c0608;
+    background-color: #121310;
     background-image:
-      radial-gradient(circle at 12% 10%, rgba(200, 29, 58, 0.22), transparent 45%),
-      radial-gradient(circle at 88% 12%, rgba(139, 94, 60, 0.14), transparent 40%),
-      radial-gradient(circle at 50% 88%, rgba(200, 29, 58, 0.12), transparent 50%),
-      linear-gradient(180deg, #0e0709 0%, #13080c 50%, #090406 100%);
+      radial-gradient(circle at 50% -12%, rgba(245, 158, 11, 0.08), transparent 50%),
+      radial-gradient(circle at 88% 20%, rgba(252, 221, 130, 0.03), transparent 40%),
+      linear-gradient(180deg, #121310 0%, #151612 50%, #0E0F0C 100%);
   }
 
   * {
@@ -79,88 +78,88 @@
   }
 
   ::selection {
-    background: rgba(200, 29, 58, 0.2);
-    color: #430612;
+    background: rgba(252, 221, 130, 0.45);
+    color: #78350F;
   }
 
   .dark ::selection {
-    background: rgba(232, 74, 106, 0.35);
-    color: #ffffff;
+    background: rgba(245, 158, 11, 0.35);
+    color: #FEF3C7;
   }
 }
 
 @layer components {
-  /* High-performance glass panel with mobile/low-end solid fallback */
-  .glass-panel {
-    background: rgba(255, 255, 255, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.9);
-    box-shadow: 0 20px 48px -12px rgba(67, 24, 37, 0.07), 0 1px 2px 0 rgba(255, 255, 255, 0.9) inset;
-    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  /* Quiet Utility Floating Glass Capsule for Desktop Navigation & Mobile Bottom Dock */
+  .glass-capsule {
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
-  @supports (backdrop-filter: blur(14px)) or (-webkit-backdrop-filter: blur(14px)) {
+  @supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
+    .glass-capsule {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+  }
+
+  .dark .glass-capsule {
+    background: rgba(24, 25, 21, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.45), 0 2px 8px -1px rgba(0, 0, 0, 0.3);
+  }
+
+  @supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
+    .dark .glass-capsule {
+      background: rgba(24, 25, 21, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+  }
+
+  /* Glass Panel for Floating Sheets, Drawers and Overlays */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.08);
+  }
+
+  @supports (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px)) {
     .glass-panel {
-      background: rgba(255, 255, 255, 0.78);
+      background: rgba(255, 255, 255, 0.82);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.85);
-      box-shadow: 0 20px 48px -12px rgba(67, 24, 37, 0.07), 0 1px 2px 0 rgba(255, 255, 255, 0.9) inset;
     }
   }
 
   .dark .glass-panel {
-    background: rgba(20, 11, 15, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 1px 1px 0 rgba(255, 255, 255, 0.06) inset;
-  }
-
-  @supports (backdrop-filter: blur(14px)) or (-webkit-backdrop-filter: blur(14px)) {
-    .dark .glass-panel {
-      background: rgba(20, 11, 15, 0.72);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 1px 1px 0 rgba(255, 255, 255, 0.06) inset;
-    }
-  }
-
-  /* Sub-surface glass card */
-  .glass-card {
-    background: rgba(253, 238, 240, 0.7);
-    border: 1px solid rgba(241, 184, 196, 0.4);
-    box-shadow: 0 2px 8px 0 rgba(67, 24, 37, 0.03), 0 1px 1px 0 rgba(255, 255, 255, 0.8) inset;
-    transition: background 0.25s ease, border-color 0.25s ease;
-  }
-
-  @supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
-    .glass-card {
-      background: rgba(253, 238, 240, 0.55);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(241, 184, 196, 0.45);
-      box-shadow: 0 2px 8px 0 rgba(67, 24, 37, 0.03), 0 1px 1px 0 rgba(255, 255, 255, 0.8) inset;
-    }
-  }
-
-  .dark .glass-card {
-    background: rgba(29, 15, 22, 0.75);
+    background: rgba(24, 25, 21, 0.94);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.45), 0 1px 1px 0 rgba(255, 255, 255, 0.05) inset;
+    box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.5);
   }
 
-  @supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
-    .dark .glass-card {
-      background: rgba(29, 15, 22, 0.55);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.45), 0 1px 1px 0 rgba(255, 255, 255, 0.05) inset;
+  @supports (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px)) {
+    .dark .glass-panel {
+      background: rgba(24, 25, 21, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
     }
   }
 
-  /* Standard accessible focus ring */
+  /* Two-tier accessible focus ring */
   .focus-ring {
-    @apply outline-none transition focus-visible:ring-2 focus-visible:ring-lychee-shell focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#0c0608];
+    outline: none;
+    transition: box-shadow 0.15s ease-out;
+  }
+
+  .focus-ring:focus-visible {
+    box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #D97706;
+  }
+
+  html.dark .focus-ring:focus-visible {
+    box-shadow: 0 0 0 2px #181915, 0 0 0 4px #FBBF24;
   }
 }
 

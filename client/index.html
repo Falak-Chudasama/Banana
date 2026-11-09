@@ -2,23 +2,27 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lychee — Ephemeral Media Extractor</title>
-    <meta name="description" content="Fast, private YouTube MP4 and MP3 media extractor with zero persistent storage" />
-    <meta name="theme-color" content="#0c0608" id="meta-theme-color" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <title>Banana</title>
+    <meta name="description" content="Fast, private YouTube MP4 and MP3 media extractor, stream player, audio trimmer, and music discovery with zero persistent storage" />
+    <meta name="theme-color" content="#121310" id="meta-theme-color" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/banana-icon.svg" />
     <link rel="preload" href="/fonts/Host_Grotesk/HostGrotesk-VariableFont_wght.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="/fonts/Unbounded/Unbounded-VariableFont_wght.ttf" as="font" type="font/ttf" crossorigin />
     <script>
       (function() {
         try {
-          var t = localStorage.getItem('lychee_theme');
-          if (t === 'light') {
+          var t = localStorage.getItem('banana_theme') || localStorage.getItem('lychee_theme');
+          var isDark = t ? t === 'dark' : true;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            var meta = document.getElementById('meta-theme-color');
+            if (meta) meta.setAttribute('content', '#121310');
+          } else {
             document.documentElement.classList.remove('dark');
             var meta = document.getElementById('meta-theme-color');
-            if (meta) meta.setAttribute('content', '#fdf2f4');
-          } else {
-            document.documentElement.classList.add('dark');
+            if (meta) meta.setAttribute('content', '#F8F9F5');
           }
         } catch (e) {
           document.documentElement.classList.add('dark');
@@ -26,7 +30,7 @@
       })();
     </script>
   </head>
-  <body>
+  <body class="bg-[#F8F9F5] text-stone-900 antialiased dark:bg-[#121310] dark:text-stone-50 selection:bg-amber-200 selection:text-stone-900 dark:selection:bg-amber-400/30 dark:selection:text-amber-100 min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -59,12 +59,10 @@ export function MediaPlayer({
           setIsLoading(false)
         })
         .catch((err: unknown) => {
-          // If aborted because still fetching/transitioning source, ignore - onCanPlay/onLoadedMetadata will handle it
           if (err instanceof Error && err.name === 'AbortError') {
             return
           }
           if (err instanceof Error && err.name === 'NotAllowedError') {
-            // Browser autoplay policy prevented unmuted autoplay
             shouldPlayRef.current = false
             setIsPlaying(false)
             setIsLoading(false)
@@ -76,7 +74,6 @@ export function MediaPlayer({
   }
 
   useEffect(() => {
-    // When URL or format changes, the user wants to play this media
     shouldPlayRef.current = true
     setCurrentTime(0)
     setDuration(0)
@@ -153,10 +150,10 @@ export function MediaPlayer({
   }
 
   return (
-    <div className="glass-panel overflow-hidden rounded-3xl p-6 sm:p-7 shadow-glass transition-all">
+    <div className="rounded-2xl border border-black/[0.06] bg-white p-5 sm:p-6 shadow-soft dark:border-white/[0.08] dark:bg-[#181915] transition-all">
       {/* Video display (when in video mode) */}
       {format === 'video' && (
-        <div className="relative mb-6 aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-md">
+        <div className="relative mb-5 aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xs">
           <video
             ref={(ref) => {
               mediaRef.current = ref
@@ -197,7 +194,7 @@ export function MediaPlayer({
           />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-              <SpinnerIcon className="h-10 w-10 animate-spin text-white" />
+              <SpinnerIcon className="h-8 w-8 animate-spin text-white" />
             </div>
           )}
         </div>
@@ -245,7 +242,7 @@ export function MediaPlayer({
 
       {/* Track info & Format switch */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
-        <div className="flex items-center gap-4 overflow-hidden">
+        <div className="flex items-center gap-3.5 overflow-hidden">
           {thumbnail && format === 'audio' && (
             <img
               src={thumbnail}
@@ -253,23 +250,29 @@ export function MediaPlayer({
                 e.currentTarget.style.display = 'none'
               }}
               alt={title}
-              className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl object-cover shadow-sm"
+              className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-xl object-cover shadow-2xs"
               loading="lazy"
             />
           )}
           <div className="min-w-0">
-            <h3 className="truncate text-base sm:text-lg font-bold text-lychee-ink dark:text-white">{title || 'Media Track'}</h3>
-            {artist && <p className="truncate text-xs sm:text-sm font-medium text-lychee-seed-500 dark:text-lychee-seed-300">{artist}</p>}
+            <h3 className="truncate font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-stone-50">
+              {title || 'Media Track'}
+            </h3>
+            {artist && (
+              <p className="truncate text-xs sm:text-sm font-medium text-stone-500 dark:text-stone-400">{artist}</p>
+            )}
           </div>
         </div>
 
         {/* Audio / Video toggle */}
-        <div className="flex items-center self-start sm:self-auto rounded-xl border border-lychee-border/50 bg-lychee-membrane-100 p-1 text-xs sm:text-sm font-bold dark:border-white/10 dark:bg-black/40">
+        <div className="flex items-center self-start sm:self-auto rounded-xl border border-stone-200/90 bg-stone-100/70 p-1 text-xs font-bold dark:border-white/[0.08] dark:bg-[#1C1D18]">
           <button
             type="button"
             onClick={() => setFormat('audio')}
-            className={`rounded-lg px-4 py-1.5 transition ${
-              format === 'audio' ? 'bg-white font-bold text-lychee-shell shadow-sm dark:bg-lychee-shell dark:text-white' : 'text-lychee-ink/70 hover:text-lychee-ink dark:text-white/70 dark:hover:text-white'
+            className={`focus-ring rounded-lg px-3.5 py-1.5 transition ${
+              format === 'audio'
+                ? 'bg-white font-bold text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
+                : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
             }`}
           >
             Audio
@@ -277,8 +280,10 @@ export function MediaPlayer({
           <button
             type="button"
             onClick={() => setFormat('video')}
-            className={`rounded-lg px-4 py-1.5 transition ${
-              format === 'video' ? 'bg-white font-bold text-lychee-shell shadow-sm dark:bg-lychee-shell dark:text-white' : 'text-lychee-ink/70 hover:text-lychee-ink dark:text-white/70 dark:hover:text-white'
+            className={`focus-ring rounded-lg px-3.5 py-1.5 transition ${
+              format === 'video'
+                ? 'bg-white font-bold text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
+                : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
             }`}
           >
             Video
@@ -287,7 +292,7 @@ export function MediaPlayer({
       </div>
 
       {/* Scrubber timeline */}
-      <div className="space-y-1.5 py-2">
+      <div className="space-y-1.5 py-1">
         <div className="relative flex items-center">
           <input
             type="range"
@@ -296,41 +301,41 @@ export function MediaPlayer({
             step={0.1}
             value={currentTime}
             onChange={(e) => handleSeek(parseFloat(e.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-lychee-border/50 dark:bg-white/15 accent-lychee-shell focus:outline-none"
-            aria-label="Seek media"
+            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-amber-500 dark:accent-amber-400 focus:outline-none"
+            aria-label="Seek media position"
           />
         </div>
-        <div className="flex justify-between text-xs font-semibold text-lychee-seed-500 dark:text-lychee-seed-300">
+        <div className="flex justify-between text-xs font-mono font-medium text-stone-500 dark:text-stone-400">
           <span>{formatDuration(currentTime)}</span>
           <span>{duration > 0 ? formatDuration(duration) : '—:—'}</span>
         </div>
       </div>
 
       {/* Main playback control bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-lychee-border/25 dark:border-white/10">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3.5 border-t border-stone-200/80 dark:border-white/[0.08]">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           {/* Play/Pause */}
           <button
             type="button"
             onClick={togglePlay}
             aria-label={isPlaying ? 'Pause' : 'Play'}
-            className="focus-ring flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-lychee-shell text-white shadow-soft transition hover:bg-lychee-shell-600 active:scale-95"
+            className="focus-ring flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-amber-500 text-white shadow-soft transition hover:bg-amber-600 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
           >
             {isLoading ? (
-              <SpinnerIcon className="h-6 w-6 animate-spin text-white" />
+              <SpinnerIcon className="h-5 w-5 animate-spin text-white dark:text-stone-950" />
             ) : isPlaying ? (
-              <PauseIcon className="h-6 w-6" />
+              <PauseIcon className="h-5 w-5" />
             ) : (
-              <PlayIcon className="h-6 w-6 translate-x-0.5" />
+              <PlayIcon className="h-5 w-5 translate-x-0.5" />
             )}
           </button>
 
           {/* Volume */}
-          <div className="flex items-center gap-2 pl-2">
+          <div className="flex items-center gap-1.5 pl-1">
             <button
               type="button"
               onClick={toggleMute}
-              className="rounded-xl p-1.5 text-lychee-seed-500 hover:bg-lychee-membrane-100 hover:text-lychee-ink dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white transition"
+              className="focus-ring rounded-lg p-1.5 text-stone-500 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-white/10 dark:hover:text-stone-200 transition"
               aria-label={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted || volume === 0 ? (
@@ -346,7 +351,7 @@ export function MediaPlayer({
               step={0.05}
               value={isMuted ? 0 : volume}
               onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-              className="h-2 w-20 cursor-pointer appearance-none rounded-lg bg-lychee-border/50 dark:bg-white/15 accent-lychee-shell sm:w-28"
+              className="h-1.5 w-16 cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-amber-500 dark:accent-amber-400 sm:w-24"
               aria-label="Volume"
             />
           </div>
@@ -355,7 +360,7 @@ export function MediaPlayer({
           <button
             type="button"
             onClick={cycleSpeed}
-            className="rounded-xl px-2.5 py-1 text-xs font-bold text-lychee-seed-700 hover:bg-lychee-membrane-100 dark:text-lychee-seed-300 dark:hover:bg-white/10 transition"
+            className="focus-ring rounded-lg border border-stone-200/90 dark:border-white/[0.08] px-2.5 py-1 text-xs font-bold text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-white/10 transition"
             title="Playback speed"
           >
             {playbackSpeed}x
@@ -363,15 +368,15 @@ export function MediaPlayer({
         </div>
 
         {/* Action buttons directly accessible beneath media */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {onTrimRequested && (
             <button
               type="button"
               onClick={onTrimRequested}
-              className={`focus-ring inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs sm:text-sm font-bold shadow-sm transition active:scale-95 ${
+              className={`focus-ring inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs sm:text-sm font-bold shadow-2xs transition active:scale-95 ${
                 isTrimOpen
-                  ? 'border-lychee-shell bg-lychee-shell text-white'
-                  : 'border-white/80 bg-white text-lychee-seed-700 hover:bg-lychee-membrane-100 dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/15 dark:hover:text-white'
+                  ? 'border-amber-500 bg-amber-500 text-white dark:border-amber-400 dark:bg-amber-400 dark:text-stone-950'
+                  : 'border-stone-200/90 bg-white text-stone-700 hover:bg-stone-50 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C]'
               }`}
             >
               <ScissorsIcon className="h-4 w-4" />
@@ -383,10 +388,10 @@ export function MediaPlayer({
             <button
               type="button"
               onClick={onAddToCollection}
-              className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-white/80 bg-white px-4 py-2.5 text-xs sm:text-sm font-bold text-lychee-seed-700 shadow-sm transition hover:bg-lychee-membrane-100 active:scale-95 dark:border-white/10 dark:bg-white/[0.06] dark:text-lychee-seed-300 dark:hover:bg-white/15 dark:hover:text-white"
-              title="Add to temporary collection"
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-stone-700 shadow-2xs transition hover:bg-stone-50 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C]"
+              title="Add to session collection"
             >
-              <CollectionIcon className="h-4 w-4 text-lychee-shell" />
+              <CollectionIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
               <span className="hidden sm:inline">Collect</span>
             </button>
           )}
@@ -395,7 +400,7 @@ export function MediaPlayer({
             <button
               type="button"
               onClick={onDownloadRequested}
-              className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-lychee-shell px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-soft transition hover:bg-lychee-shell-600 active:scale-95"
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
             >
               <DownloadIcon className="h-4 w-4" />
               <span>Download</span>
@@ -406,4 +411,3 @@ export function MediaPlayer({
     </div>
   )
 }
-
