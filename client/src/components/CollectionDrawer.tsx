@@ -109,7 +109,7 @@ export function CollectionDrawer({
                     <button
                       type="button"
                       onClick={() => onPlayTrack(track)}
-                      className="focus-ring rounded-lg p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition active:scale-95"
+                      className="focus-ring rounded-full p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition active:scale-95"
                       title="Play track"
                       aria-label="Play track"
                     >

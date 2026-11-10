@@ -3,6 +3,8 @@ import { buildStreamPreviewUrl, formatDuration } from '../lib/media'
 import {
   CollectionIcon,
   DownloadIcon,
+  FullscreenExitIcon,
+  FullscreenIcon,
   PauseIcon,
   PlayIcon,
   ScissorsIcon,
@@ -42,9 +44,36 @@ export function MediaPlayer({
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const mediaRef = useRef<HTMLMediaElement | null>(null)
+  const videoContainerRef = useRef<HTMLDivElement | null>(null)
   const shouldPlayRef = useRef(true)
+
+  useEffect(() => {
+    if (initialFormat) {
+      setFormat(initialFormat)
+    }
+  }, [initialFormat, url])
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFsChange)
+    return () => document.removeEventListener('fullscreenchange', handleFsChange)
+  }, [])
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      const el = videoContainerRef.current
+      if (el?.requestFullscreen) {
+        el.requestFullscreen().catch(() => {})
+      }
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+    }
+  }
 
   const streamSrc = buildStreamPreviewUrl(url, format)
 
@@ -153,7 +182,10 @@ export function MediaPlayer({
     <div className="rounded-2xl border border-black/[0.06] bg-white p-5 sm:p-6 shadow-soft dark:border-white/[0.08] dark:bg-[#181915] transition-all">
       {/* Video display (when in video mode) */}
       {format === 'video' && (
-        <div className="relative mb-5 aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xs">
+        <div
+          ref={videoContainerRef}
+          className="group/video relative mb-5 aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xs"
+        >
           <video
             ref={(ref) => {
               mediaRef.current = ref
@@ -190,13 +222,25 @@ export function MediaPlayer({
               setIsPlaying(false)
               setIsLoading(false)
             }}
-            className="h-full w-full object-contain"
+            className="h-full w-full object-contain cursor-pointer"
+            onClick={togglePlay}
           />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
               <SpinnerIcon className="h-8 w-8 animate-spin text-white" />
             </div>
           )}
+
+          {/* Quick Fullscreen button on video */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="focus-ring absolute bottom-3 right-3 rounded-lg bg-black/60 p-2 text-white/90 backdrop-blur-md transition hover:bg-black/90 hover:text-white"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Watch Fullscreen'}
+            aria-label={isFullscreen ? 'Exit Fullscreen' : 'Watch Fullscreen'}
+          >
+            {isFullscreen ? <FullscreenExitIcon className="h-5 w-5" /> : <FullscreenIcon className="h-5 w-5" />}
+          </button>
         </div>
       )}
 
@@ -319,14 +363,14 @@ export function MediaPlayer({
             type="button"
             onClick={togglePlay}
             aria-label={isPlaying ? 'Pause' : 'Play'}
-            className="focus-ring flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-amber-500 text-white shadow-soft transition hover:bg-amber-600 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
+            className="focus-ring flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-amber-500 text-white shadow-soft transition hover:scale-105 hover:bg-amber-600 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
           >
             {isLoading ? (
               <SpinnerIcon className="h-5 w-5 animate-spin text-white dark:text-stone-950" />
             ) : isPlaying ? (
               <PauseIcon className="h-5 w-5" />
             ) : (
-              <PlayIcon className="h-5 w-5 translate-x-0.5" />
+              <PlayIcon className="h-5 w-5" />
             )}
           </button>
 
@@ -365,6 +409,20 @@ export function MediaPlayer({
           >
             {playbackSpeed}x
           </button>
+
+          {/* Fullscreen (when in video mode) */}
+          {format === 'video' && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="focus-ring inline-flex items-center gap-1 rounded-lg border border-stone-200/90 dark:border-white/[0.08] px-2.5 py-1 text-xs font-bold text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-white/10 transition"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Watch Fullscreen'}
+              aria-label={isFullscreen ? 'Exit Fullscreen' : 'Watch Fullscreen'}
+            >
+              {isFullscreen ? <FullscreenExitIcon className="h-3.5 w-3.5" /> : <FullscreenIcon className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Full'}</span>
+            </button>
+          )}
         </div>
 
         {/* Action buttons directly accessible beneath media */}

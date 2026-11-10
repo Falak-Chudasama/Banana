@@ -3,6 +3,7 @@ import { CollectionDrawer } from './components/CollectionDrawer'
 import { DiscoverView } from './components/DiscoverView'
 import { MediaPlayer } from './components/MediaPlayer'
 import { PlaylistView } from './components/PlaylistView'
+import { SearchView } from './components/SearchView'
 import { Select } from './components/Select'
 import { TrimPanel } from './components/TrimPanel'
 import {
@@ -38,7 +39,7 @@ import {
   qualityLabel,
   triggerBrowserNativeDownload,
 } from './lib/media'
-import type { NavTab, TrackItem } from './lib/types'
+import type { NavTab, TrackItem, VideoSearchResult } from './lib/types'
 
 type ProcessState = 'idle' | 'fetching_info' | 'preparing' | 'completed' | 'error'
 
@@ -96,6 +97,7 @@ export default function App() {
     title: string
     artist?: string
     thumbnail?: string
+    format?: 'audio' | 'video'
   } | null>(null)
 
   // Trimming panel state
@@ -300,6 +302,32 @@ export default function App() {
     }
   }
 
+  const handlePlayVideoFromSearch = (video: VideoSearchResult) => {
+    setPlayingTrack({
+      url: video.url,
+      title: video.title,
+      artist: video.channel,
+      thumbnail: video.thumbnail,
+      format: 'video',
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleDownloadVideoFromSearch = (video: VideoSearchResult) => {
+    setUrl(video.url)
+    setActiveTab('download')
+  }
+
+  const handleAddVideoToCollection = (video: VideoSearchResult) => {
+    addToCollection({
+      id: video.id,
+      title: video.title,
+      artist: video.channel,
+      thumbnail: video.thumbnail,
+      url: video.url,
+    })
+  }
+
   return (
     <div className="flex min-h-screen flex-col justify-between font-sans selection:bg-amber-200 selection:text-stone-900 dark:selection:bg-amber-400/30 dark:selection:text-amber-100">
       {/* 
@@ -348,6 +376,19 @@ export default function App() {
 
             <button
               type="button"
+              onClick={() => setActiveTab('search')}
+              className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'search'
+                  ? 'bg-stone-900 text-white shadow-xs dark:bg-stone-100 dark:text-stone-900'
+                  : 'text-stone-600 hover:bg-stone-100/70 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
+              }`}
+            >
+              <SearchIcon className="h-4 w-4" />
+              <span>Search</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('playlists')}
               className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
                 activeTab === 'playlists'
@@ -390,7 +431,7 @@ export default function App() {
               {theme === 'dark' ? (
                 <SunIcon className="h-4 w-4 text-amber-400 transition-transform duration-200 hover:rotate-45" />
               ) : (
-                <MoonIcon className="h-4 w-4 text-stone-600 transition-transform duration-200 hover:-rotate-12" />
+                <MoonIcon className="h-4 w-4 text-amber-500 transition-transform duration-200 hover:-rotate-12" />
               )}
             </button>
           </div>
@@ -436,7 +477,7 @@ export default function App() {
             {theme === 'dark' ? (
               <SunIcon className="h-5 w-5 text-amber-400" />
             ) : (
-              <MoonIcon className="h-5 w-5 text-stone-600" />
+              <MoonIcon className="h-5 w-5 text-amber-500" />
             )}
           </button>
         </div>
@@ -467,6 +508,7 @@ export default function App() {
               title={playingTrack.title}
               artist={playingTrack.artist}
               thumbnail={playingTrack.thumbnail}
+              initialFormat={playingTrack.format || 'audio'}
               onTrimRequested={() => setIsTrimOpen(!isTrimOpen)}
               onDownloadRequested={() => {
                 if (url !== playingTrack.url) {
@@ -785,8 +827,8 @@ export default function App() {
                         className="focus-ring absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100"
                         title="Play in preview player"
                       >
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-stone-900 shadow-soft transition transform group-hover:scale-105 dark:bg-stone-900 dark:text-white">
-                          <PlayIcon className="h-5 w-5 translate-x-0.5" />
+                        <div className="flex h-13 w-13 items-center justify-center rounded-full bg-amber-500 text-white shadow-xl ring-4 ring-white/30 transition transform group-hover:scale-110 group-hover:bg-amber-400 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:ring-black/40">
+                          <PlayIcon className="h-6 w-6" />
                         </div>
                       </button>
                     </div>
@@ -855,7 +897,30 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 3: Playlists Screen */}
+        {/* Tab 3: Search Screen */}
+        {activeTab === 'search' && (
+          <div className="space-y-6">
+            <div className="mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-sans">
+                Full Video Catalog
+              </span>
+              <h1 className="mt-1 font-sans text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
+                Search Videos
+              </h1>
+              <p className="mt-1.5 text-sm sm:text-base text-stone-600 dark:text-stone-400 font-sans">
+                Search keywords, explore rich metadata with views, likes & dislikes, watch in fullscreen, or queue for download.
+              </p>
+            </div>
+
+            <SearchView
+              onPlayVideo={handlePlayVideoFromSearch}
+              onDownloadVideo={handleDownloadVideoFromSearch}
+              onAddToCollection={handleAddVideoToCollection}
+            />
+          </div>
+        )}
+
+        {/* Tab 4: Playlists Screen */}
         {activeTab === 'playlists' && (
           <div className="space-y-6">
             <div className="mb-2">
@@ -894,7 +959,7 @@ export default function App() {
         MOBILE BOTTOM DOCK: Fixed Floating Pill (< 640px)
         Follows Kiwi Dual-Mode Navigation Architecture
       */}
-      <div className="fixed bottom-3 inset-x-3 z-50 grid grid-cols-3 gap-1 rounded-2xl border border-black/[0.08] bg-white/95 py-1.5 px-1.5 shadow-lift backdrop-blur-lg dark:border-white/[0.08] dark:bg-[#181915]/95 sm:hidden transition-colors duration-200">
+      <div className="fixed bottom-3 inset-x-3 z-50 grid grid-cols-4 gap-1 rounded-2xl border border-black/[0.08] bg-white/95 py-1.5 px-1.5 shadow-lift backdrop-blur-lg dark:border-white/[0.08] dark:bg-[#181915]/95 sm:hidden transition-colors duration-200">
         <button
           type="button"
           onClick={() => setActiveTab('download')}
@@ -919,6 +984,19 @@ export default function App() {
         >
           <SparklesIcon className="h-5 w-5 shrink-0" />
           <span>Discover</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('search')}
+          className={`flex flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition ${
+            activeTab === 'search'
+              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+              : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
+          }`}
+        >
+          <SearchIcon className="h-5 w-5 shrink-0" />
+          <span>Search</span>
         </button>
 
         <button

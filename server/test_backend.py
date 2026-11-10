@@ -114,8 +114,8 @@ class TestDiscoverUtilities(unittest.TestCase):
             for r in recs:
                 self.assertIn("match_score", r)
                 self.assertIsInstance(r["match_score"], int)
-                self.assertGreaterEqual(r["match_score"], 60)
-                self.assertLessEqual(r["match_score"], 99)
+                self.assertGreaterEqual(r["match_score"], 40)
+                self.assertLessEqual(r["match_score"], 95)
 
 
 class TestTrimmingUtilities(unittest.TestCase):
@@ -271,6 +271,14 @@ class TestEndpoints(unittest.TestCase):
             )
             loop.run_until_complete(process_trim(req))
         self.assertEqual(ctx.exception.status_code, 400)
+        loop.close()
+
+    def test_search_videos_empty_query(self):
+        from search_service import search_videos_async
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        res = loop.run_until_complete(search_videos_async("   "))
+        self.assertEqual(res, [])
         loop.close()
 
 

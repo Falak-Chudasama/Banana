@@ -1,6 +1,21 @@
 export type MediaFormat = 'mp4' | 'mp3'
 
-export type NavTab = 'download' | 'discover' | 'playlists'
+export type NavTab = 'download' | 'discover' | 'search' | 'playlists'
+
+export interface VideoSearchResult {
+  id: string
+  title: string
+  channel: string
+  channel_thumbnail?: string | null
+  views?: string
+  upload_date?: string
+  duration?: string | null
+  thumbnail: string
+  badges?: string[]
+  url: string
+  likes?: number | null
+  dislikes?: number | null
+}
 
 export interface TrackItem {
   id: string

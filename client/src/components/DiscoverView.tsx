@@ -267,7 +267,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
               <button
                 type="button"
                 onClick={() => onPlayTrack(seed)}
-                className="focus-ring rounded-lg p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-100/60 dark:hover:bg-amber-400/10 transition active:scale-95"
+                className="focus-ring rounded-full p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-100/60 dark:hover:bg-amber-400/10 transition active:scale-95"
                 title="Play seed song"
                 aria-label="Play seed song"
               >
@@ -399,11 +399,11 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                     <button
                       type="button"
                       onClick={() => onPlayTrack(track)}
-                      className="focus-ring flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-400 dark:hover:text-stone-950 transition active:scale-95"
+                      className="focus-ring flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-400 dark:hover:text-stone-950 transition active:scale-95"
                       title="Play track"
                       aria-label="Play track"
                     >
-                      <PlayIcon className="h-4 w-4 translate-x-0.5" />
+                      <PlayIcon className="h-4 w-4" />
                     </button>
                     <button
                       type="button"

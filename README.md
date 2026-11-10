@@ -260,6 +260,7 @@ The backend provides clean, documented REST endpoints:
 | `/api/playlist/info?url=<url>` | `GET` | Extract track list and count for YouTube/YouTube Music playlists. |
 | `/api/discover/seed` | `POST` | Resolve song query or URL to a pinned seed track. |
 | `/api/discover/recommendations` | `POST` | Generate recommendations with match scores and reason tags. |
+| `/api/search?query=<query>` | `GET/POST` | Keyword video search with views, upload date, badges, and likes/dislikes. |
 
 ---
 

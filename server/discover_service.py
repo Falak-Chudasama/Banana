@@ -207,8 +207,9 @@ class DiscoverEngine:
         ytm = get_ytm()
         raw_candidates = []
         seed_id = seed.get("id") or ""
+        seed_title = (seed.get("title") or "").strip()
         seed_artist = (seed.get("artist") or "").lower().strip()
-        seed_title_clean = clean_track_title(seed.get("title") or "").lower()
+        seed_title_clean = clean_track_title(seed_title).lower()
 
         exclude_ids = set(disliked_ids) | set(known_ids)
         if seed_id:
@@ -253,18 +254,35 @@ class DiscoverEngine:
                 "raw_index": len(cleaned_pool),
             })
 
-        # 3. Category-specific filtering & scoring
+        # 3. Grounded category-specific filtering & acoustic scoring
         pref_delta = 0
         if similarity_pref == "very_similar":
-            pref_delta = 2
+            pref_delta = 3
         elif similarity_pref == "experimental":
-            pref_delta = -4
+            pref_delta = -5
 
-        def compute_match_score(base_peak: int, step_decay: float, index: int, is_same_artist: bool = False) -> int:
-            score = base_peak - (index * step_decay) + pref_delta
+        def compute_match_score(
+            base_peak: int,
+            step_decay: float,
+            index: int,
+            is_same_artist: bool = False,
+            title_text: str = "",
+        ) -> int:
+            # Non-linear acoustic decay based on cluster rank
+            decay = (index ** 0.85) * step_decay
+            score = base_peak - decay + pref_delta
             if is_same_artist:
-                score += 2
-            return int(max(60, min(99, round(score))))
+                score += 3
+
+            # Token overlap bonus for close variant/remix/live titles
+            seed_tokens = set(re.findall(r"\w+", seed_title.lower()))
+            item_tokens = set(re.findall(r"\w+", title_text.lower()))
+            overlap = seed_tokens.intersection(item_tokens)
+            if overlap:
+                score += min(len(overlap) * 1.2, 3.5)
+
+            # Grounded ceiling (max 92%) and realistic floor
+            return int(max(40, min(92, round(score))))
 
         results = []
 
@@ -275,7 +293,7 @@ class DiscoverEngine:
             ]
             for idx, item in enumerate(filtered):
                 reason = f"Same vibe from alternative artist ({item['artist']})"
-                match_score = compute_match_score(96, 0.8, idx)
+                match_score = compute_match_score(79, 1.3, idx, False, item["title"])
                 results.append({**item, "reason": reason, "match_score": match_score})
 
         elif category == "hidden_gems":
@@ -286,13 +304,13 @@ class DiscoverEngine:
             ranked_gems = sorted(gems, key=lambda x: -x["raw_index"])
             for idx, item in enumerate(ranked_gems):
                 reason = "Hidden gem with acoustic match"
-                match_score = compute_match_score(91, 0.7, idx)
+                match_score = compute_match_score(74, 1.2, idx, False, item["title"])
                 results.append({**item, "reason": reason, "match_score": match_score})
 
         elif category == "trending":
             for idx, item in enumerate(cleaned_pool):
                 reason = "Trending now on global music charts"
-                match_score = compute_match_score(89, 0.5, idx)
+                match_score = compute_match_score(72, 1.1, idx, False, item["title"])
                 results.append({**item, "reason": reason, "match_score": match_score})
 
         elif category == "explore":
@@ -303,7 +321,7 @@ class DiscoverEngine:
             step = 2 if len(diverse) > 10 else 1
             for idx, item in enumerate(diverse[::step]):
                 reason = "Musical crossover sharing production energy"
-                match_score = compute_match_score(85, 0.7, idx)
+                match_score = compute_match_score(64, 1.4, idx, False, item["title"])
                 results.append({**item, "reason": reason, "match_score": match_score})
 
         else:  # more_like_this
@@ -311,11 +329,11 @@ class DiscoverEngine:
                 is_same_artist = seed_artist in item["artist"].lower()
                 if is_same_artist:
                     reason = f"Matching track by {item['artist']}"
-                    base_peak = 98
+                    base_peak = 85
                 else:
                     reason = "Similar musical style, tempo and energy"
-                    base_peak = 95
-                match_score = compute_match_score(base_peak, 0.7, idx, is_same_artist)
+                    base_peak = 80
+                match_score = compute_match_score(base_peak, 1.2, idx, is_same_artist, item["title"])
                 results.append({**item, "reason": reason, "match_score": match_score})
 
         # 4. Apply session feedback
@@ -326,10 +344,10 @@ class DiscoverEngine:
                 def feedback_priority(c):
                     return 0 if any(la in c["artist"].lower() for la in liked_artists) else 1
                 results.sort(key=feedback_priority)
-                # Boost match_score for liked artists/tracks by +3% (capped at 99)
+                # Boost match_score for liked artists/tracks by +3% (capped at 92)
                 for item in results:
                     if any(la in item["artist"].lower() for la in liked_artists) or item["id"] in liked_set:
-                        item["match_score"] = min(99, item.get("match_score", 90) + 3)
+                        item["match_score"] = min(92, item.get("match_score", 75) + 3)
 
         final_list = results[:min(limit, DISCOVER_MAX_RECOMMENDATIONS)]
 
@@ -339,7 +357,7 @@ class DiscoverEngine:
                     final_list.append({
                         **extra,
                         "reason": "Recommended by Banana Discover",
-                        "match_score": max(65, 82 - len(final_list)),
+                        "match_score": max(45, 68 - len(final_list)),
                     })
                 if len(final_list) >= limit:
                     break

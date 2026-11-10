@@ -17,6 +17,7 @@ from discover_service import discover_engine
 from media_service import extract_info_async, prepare_media_job
 from playlist_service import extract_playlist_async
 from resilience import ensure_ffmpeg_in_path
+from search_service import search_videos_async
 from storage import PreparedJob, storage_manager
 from stream_service import handle_preview_stream
 from trim_service import trim_media_job
@@ -167,6 +168,7 @@ def root():
             "/playlist/info",
             "/discover/seed",
             "/discover/recommendations",
+            "/search",
         ],
     }
 
@@ -370,6 +372,43 @@ async def discover_recommendations(request: Request, payload: Optional[DiscoverR
     except Exception as exc:
         logger.error(f"Recommendation generation error: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail="Recommendation engine encountered an error.")
+
+
+# 7. Banana Video Search Engine
+@router.api_route("/search", methods=["GET", "POST"])
+async def search_videos(
+    request: Request,
+    query: Optional[str] = Query(None, description="Video search query"),
+    limit: int = Query(20, ge=1, le=50, description="Max search results"),
+):
+    """
+    Search YouTube videos with rich metadata (views, upload date, channel, badges, likes, dislikes).
+    """
+    search_query = query
+    max_results = limit
+
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                if body.get("query"):
+                    search_query = str(body["query"])
+                if body.get("limit"):
+                    max_results = int(body["limit"])
+        except Exception:
+            pass
+
+    if not search_query or not search_query.strip():
+        if request.method == "GET":
+            return {"ok": True, "results": [], "message": "Search endpoint ready. Provide ?query=<term>"}
+        raise HTTPException(status_code=400, detail="Missing required 'query' parameter.")
+
+    try:
+        results = await search_videos_async(search_query.strip(), limit=max_results)
+        return {"ok": True, "query": search_query.strip(), "results": results}
+    except Exception as exc:
+        logger.error(f"Search failed for '{search_query}': {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Video search service encountered an error.")
 
 
 # Register routes at root and with /api prefix
