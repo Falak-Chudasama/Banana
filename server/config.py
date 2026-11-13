@@ -11,25 +11,32 @@ def get_env_list(key: str, default: List[str]) -> List[str]:
 
 
 # Host and Port
-BANANA_HOST: str = os.getenv("BANANA_HOST", "127.0.0.3")
-BANANA_PORT: int = int(os.getenv("BANANA_PORT", "6060"))
+BANANA_HOST: str = os.getenv("BANANA_HOST", "127.0.0.4")
+BANANA_PORT: int = int(os.getenv("BANANA_PORT", "10000"))
 
 # Permitted CORS origins
 BANANA_ALLOWED_ORIGINS: List[str] = get_env_list(
     "BANANA_ALLOWED_ORIGINS",
     [
+        "https://banana.jam",
+        "http://banana.jam",
+        "https://api.banana.jam",
+        "http://api.banana.jam",
+        "http://127.0.0.4:10000",
+        "http://127.0.0.4",
+        "http://localhost:10000",
         "https://banana.com",
         "http://banana.com",
         "https://api.banana.com",
         "http://api.banana.com",
-        "http://127.0.0.3:6050",
+        "http://127.0.0.4:6050",
         "http://127.0.0.1:5173",
         "http://localhost:5173",
         "http://localhost:6050",
         "http://127.0.0.1:6050",
-        "http://127.0.0.3:5173",
+        "http://127.0.0.4:5173",
         "http://localhost:4173",
-        "http://127.0.0.3:4173",
+        "http://127.0.0.4:4173",
         "http://127.0.0.1:4173",
     ],
 )
