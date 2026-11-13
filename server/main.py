@@ -1,10 +1,12 @@
+import asyncio
 import logging
 import shutil
+import time
 import urllib.parse
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, Response
+from fastapi import APIRouter, FastAPI, HTTPException, Header, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -14,14 +16,22 @@ from config import (
     MEDIA_DOWNLOAD_CHUNK_SIZE,
 )
 from discover_service import discover_engine
-from media_service import extract_info_async, prepare_media_job
+from download_service import handle_download_complete, handle_download_request
+from job_types import ErrorCode, JobRecord, JobStatus, JobType
+from jobs import job_manager
+from media_service import (
+    execute_download_job,
+    extract_info_async,
+    prepare_media_job,
+)
+from playlist_jobs import create_playlist_job
 from playlist_service import extract_playlist_async
 from resilience import ensure_ffmpeg_in_path
 from search_service import search_videos_async
 from storage import PreparedJob, storage_manager
 from stream_service import handle_preview_stream
-from trim_service import trim_media_job
-from validator import is_valid_youtube_url
+from trim_service import execute_trim_job, trim_media_job
+from validator import is_valid_playlist_url, is_valid_youtube_url
 
 # Configure logger
 logging.basicConfig(
@@ -33,37 +43,44 @@ logger = logging.getLogger("banana.api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure FFmpeg discovery, initialize temp root, and start periodic cleaner
+    # Startup: ensure FFmpeg discovery, initialize JobManager and StorageManager
+    loop = asyncio.get_running_loop()
     try:
         ensure_ffmpeg_in_path()
     except Exception as exc:
         logger.warning(f"Resilience pre-flight check warning: {exc}")
 
     try:
-        storage_manager.initialize()
+        job_manager.initialize(loop=loop)
     except Exception as exc:
-        logger.error(f"Storage initialization error: {exc}")
+        logger.error(f"JobManager initialization error: {exc}")
 
     try:
+        storage_manager.initialize()
         storage_manager.start_periodic_cleanup()
     except Exception as exc:
-        logger.warning(f"Could not start periodic cleanup: {exc}")
+        logger.warning(f"Legacy StorageManager initialization warning: {exc}")
 
-    logger.info("Banana Backend services initialized and ready.")
+    logger.info("Banana Backend services and JobManager initialized and ready.")
     yield
 
-    # Shutdown: gracefully stop cleaner and purge jobs
+    # Shutdown: gracefully stop workers and purge jobs
     logger.info("Banana Backend shutting down...")
+    try:
+        await job_manager.shutdown()
+    except Exception as exc:
+        logger.warning(f"JobManager shutdown warning: {exc}")
+
     try:
         await storage_manager.stop_periodic_cleanup()
     except Exception as exc:
-        logger.warning(f"Shutdown cleanup warning: {exc}")
+        logger.warning(f"StorageManager shutdown cleanup warning: {exc}")
     logger.info("Banana Backend shutdown complete.")
 
 
 app = FastAPI(
     title="Banana Media Backend",
-    version="2.0.0",
+    version="2.1.0",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -75,8 +92,9 @@ app.add_middleware(
     allow_origins=BANANA_ALLOWED_ORIGINS,
     allow_origin_regex=r"^https?://([a-zA-Z0-9.-]+\.)?banana\.com(:\d+)?$|^https?://(localhost|127\.0\.0\.\d+)(:\d+)?$",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Disposition", "Content-Length"],
 )
 
 
@@ -84,15 +102,37 @@ app.add_middleware(
 @app.middleware("http")
 async def add_privacy_headers(request: Request, call_next):
     response: Response = await call_next(request)
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    # Don't override stream response headers if already set
+    if "Cache-Control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    if "Pragma" not in response.headers:
+        response.headers["Pragma"] = "no-cache"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     return response
 
 
-# Typed models
+# Typed Request Models
+class CreateDownloadJobRequest(BaseModel):
+    url: str = Field(..., min_length=11, max_length=2048)
+    format: Literal["mp3", "mp4"] = "mp4"
+    quality: str = "best"
+
+
+class CreateTrimJobRequest(BaseModel):
+    url: str = Field(..., min_length=11, max_length=2048)
+    format: Literal["mp3", "mp4"] = "mp3"
+    start_time: float = Field(..., ge=0.0)
+    end_time: float = Field(..., gt=0.0)
+
+
+class CreatePlaylistJobRequest(BaseModel):
+    url: str = Field(..., min_length=11, max_length=2048)
+    format: Literal["mp3", "mp4"] = "mp3"
+    quality: str = "best"
+    track_ids: Optional[List[str]] = None
+
+
 class MediaRequest(BaseModel):
     url: str = Field(..., min_length=11, max_length=2048)
     format: Literal["mp3", "mp4"] = "mp4"
@@ -129,26 +169,6 @@ class DiscoverRecommendRequest(BaseModel):
     limit: int = 25
 
 
-# Streaming generator for prepared jobs
-async def stream_media_chunks(job: PreparedJob):
-    await storage_manager.increment_transfers(job.job_id)
-    transfer_succeeded = False
-    try:
-        with open(job.filepath, "rb") as f:
-            while True:
-                chunk = f.read(MEDIA_DOWNLOAD_CHUNK_SIZE)
-                if not chunk:
-                    break
-                yield chunk
-        transfer_succeeded = True
-    except (GeneratorExit, ConnectionResetError, BrokenPipeError):
-        logger.info(f"Transfer interrupted for job {job.job_id}")
-    except Exception as exc:
-        logger.error(f"Streaming error for job {job.job_id}: {exc}")
-    finally:
-        await storage_manager.decrement_transfers(job.job_id, mark_completed=transfer_succeeded)
-
-
 router = APIRouter()
 
 
@@ -157,18 +177,13 @@ def root():
     return {
         "ok": True,
         "name": "Banana Media Backend",
-        "version": "2.0.0",
-        "endpoints": [
-            "/health",
-            "/info",
-            "/download/prepare",
-            "/download/stream",
-            "/stream/preview",
-            "/trim/process",
-            "/playlist/info",
-            "/discover/seed",
-            "/discover/recommendations",
-            "/search",
+        "version": "2.1.0",
+        "features": [
+            "real_time_sse_progress",
+            "cooperative_cancellation",
+            "progressive_file_transfer",
+            "http_range_206_seeking",
+            "ephemeral_zero_storage",
         ],
     }
 
@@ -177,7 +192,7 @@ def root():
 def health():
     return {
         "ok": True,
-        "active_jobs": storage_manager.active_jobs_count,
+        "active_jobs": job_manager.active_jobs_count,
     }
 
 
@@ -191,25 +206,190 @@ def diagnostics():
             "path": ffmpeg_bin,
         },
         "storage": {
-            "root": str(storage_manager.temp_root),
-            "exists": storage_manager.temp_root.exists(),
-            "active_jobs": storage_manager.active_jobs_count,
+            "root": str(job_manager.temp_root),
+            "exists": job_manager.temp_root.exists(),
+            "active_jobs": job_manager.active_jobs_count,
         },
     }
 
 
-# 1. Media Info & Metadata
-@router.get("/info")
-async def get_media_info(url: str = Query(..., description="YouTube URL")):
-    if not is_valid_youtube_url(url):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid YouTube URL. Please provide a standard watch, shorts, or youtu.be link.",
+# =========================================================================
+# 1. NEW ROBUST JOB ORCHESTRATION & SSE PIPELINE
+# =========================================================================
+
+@router.post("/jobs/download")
+async def create_download_job(payload: CreateDownloadJobRequest):
+    """Initiate a download job and enter concurrency queue with truthful progress."""
+    if not is_valid_youtube_url(payload.url):
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL.")
+
+    job = await job_manager.create_job(
+        job_type=JobType.DOWNLOAD,
+        url=payload.url.strip(),
+        format=payload.format,
+        quality=payload.quality,
+    )
+    await job_manager.enqueue_execution(job.job_id, execute_download_job)
+    return {"ok": True, "job": job.to_client_dict()}
+
+
+@router.post("/jobs/trim")
+async def create_trim_job(payload: CreateTrimJobRequest):
+    """Initiate a trim job with real-time FFmpeg & download progress hooks."""
+    if not is_valid_youtube_url(payload.url):
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL.")
+    if payload.start_time < 0 or payload.end_time <= payload.start_time:
+        raise HTTPException(status_code=400, detail="End time must be strictly greater than start time.")
+
+    job = await job_manager.create_job(
+        job_type=JobType.TRIM,
+        url=payload.url.strip(),
+        format=payload.format,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+    )
+    await job_manager.enqueue_execution(job.job_id, execute_trim_job)
+    return {"ok": True, "job": job.to_client_dict()}
+
+
+@router.post("/jobs/playlist")
+async def create_playlist_batch_job(payload: CreatePlaylistJobRequest):
+    """Initiate a parent playlist job and child track jobs with aggregate telemetry."""
+    if not is_valid_playlist_url(payload.url) and not is_valid_youtube_url(payload.url):
+        raise HTTPException(status_code=400, detail="Invalid playlist URL.")
+
+    try:
+        parent_job = await create_playlist_job(
+            url=payload.url.strip(),
+            format=payload.format,
+            quality=payload.quality,
+            track_ids=payload.track_ids,
         )
-    return await extract_info_async(url)
+        return {"ok": True, "job": parent_job.to_client_dict()}
+    except Exception as exc:
+        logger.error(f"Failed to create playlist batch job: {exc}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
-# 2. Preview Streaming (Range-compatible)
+@router.get("/jobs/{job_id}")
+async def get_job_state(job_id: str):
+    """Polling fallback: returns the current job state."""
+    job = await job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    data = job.to_client_dict()
+    # If playlist parent, attach child job summary
+    if job.job_type == JobType.PLAYLIST_PARENT and job.child_job_ids:
+        children = []
+        for cid in job.child_job_ids:
+            cjob = await job_manager.get_job(cid)
+            if cjob:
+                children.append(cjob.to_client_dict())
+        data["children"] = children
+
+    return {"ok": True, "job": data}
+
+
+@router.get("/jobs/{job_id}/events")
+async def stream_job_events(
+    job_id: str,
+    last_event_id: Optional[int] = Query(None, alias="last_event_id"),
+    header_last_event_id: Optional[str] = Header(None, alias="Last-Event-ID"),
+):
+    """
+    Server-Sent Events (SSE) stream delivering real-time progress, stages, and completion events.
+    Supports reconnection via Last-Event-ID and periodic heartbeats.
+    """
+    job = await job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    eff_last_id = None
+    if header_last_event_id and header_last_event_id.isdigit():
+        eff_last_id = int(header_last_event_id)
+    elif last_event_id is not None:
+        eff_last_id = last_event_id
+
+    async def sse_generator():
+        queue, replayed = await job_manager.subscribe_events(job_id, eff_last_id)
+        try:
+            # Replay missed events or current state snapshot
+            for ev in replayed:
+                yield f"id: {ev.event_id}\nevent: {ev.type}\ndata: {ev.model_dump_json()}\n\n"
+
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"id: {event.event_id}\nevent: {event.type}\ndata: {event.model_dump_json()}\n\n"
+
+                    if event.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.EXPIRED):
+                        # Graceful close on terminal state
+                        break
+                except asyncio.TimeoutError:
+                    yield f": heartbeat {time.time()}\n\n"
+        except (asyncio.CancelledError, GeneratorExit):
+            pass
+        finally:
+            await job_manager.unsubscribe_events(job_id, queue)
+
+    return StreamingResponse(
+        sse_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """Cancel a queued or currently executing media job."""
+    success = await job_manager.cancel_job(job_id)
+    if not success:
+        raise HTTPException(status_code=400, detail="Job cannot be cancelled or is already finished.")
+    return {"ok": True, "job_id": job_id, "status": "cancelled"}
+
+
+@router.post("/jobs/{job_id}/retry")
+async def retry_job(job_id: str):
+    """Retry an eligible failed or cancelled media job."""
+    job = await job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    execute_fn = execute_download_job if job.job_type != JobType.TRIM else execute_trim_job
+    updated = await job_manager.retry_job(job_id, execute_fn)
+    if not updated:
+        raise HTTPException(status_code=400, detail="Job is not eligible for retry.")
+    return {"ok": True, "job": updated.to_client_dict()}
+
+
+# =========================================================================
+# 2. FINAL FILE DELIVERY & RANGE TRANSFER (STARLETTE 200, 206, 416, HEAD)
+# =========================================================================
+
+@router.api_route("/download/{token}", methods=["GET", "HEAD"])
+async def download_file_by_token(token: str, request: Request):
+    """
+    Deliver prepared file with full HTTP Range support (200, 206, 416) and HEAD requests.
+    Does not delete the file prematurely.
+    """
+    return await handle_download_request(token, request)
+
+
+@router.post("/download/{token}/complete")
+async def complete_download_by_token(token: str):
+    """Client acknowledgment after successful file write and stream closure."""
+    return await handle_download_complete(token)
+
+
+# =========================================================================
+# 3. STREAM PREVIEW (RANGE SEEKING & ZERO DISK PIPELINE)
+# =========================================================================
+
 @router.get("/stream/preview")
 async def preview_stream(
     request: Request,
@@ -223,100 +403,31 @@ async def preview_stream(
     return await handle_preview_stream(url, format, request)
 
 
-# 3. Download Preparation & Native Chunked Streaming
-@router.post("/download/prepare", response_model=PreparedMediaResponse)
-async def prepare_download(payload: MediaRequest):
-    job = await prepare_media_job(payload.url, payload.format, payload.quality)
-    return PreparedMediaResponse(
-        token=job.token,
-        filename=job.filename,
-        filesize=job.filesize,
-        expires_in=storage_manager.ttl_seconds,
-    )
+# =========================================================================
+# 4. METADATA, DISCOVER, SEARCH, PLAYLIST INFO
+# =========================================================================
 
-
-@router.get("/download/stream")
-async def stream_download(token: str = Query(..., description="Short-lived opaque download token")):
-    job = await storage_manager.get_by_token(token)
-    if not job or not job.filepath.exists():
+@router.get("/info")
+async def get_media_info(url: str = Query(..., description="YouTube URL")):
+    if not is_valid_youtube_url(url):
         raise HTTPException(
-            status_code=404,
-            detail="Download token is invalid, expired, or media was already consumed.",
+            status_code=400,
+            detail="Invalid YouTube URL. Please provide a standard watch, shorts, or youtu.be link.",
         )
-
-    encoded_filename = urllib.parse.quote(job.filename)
-    headers = {
-        "Content-Disposition": f"attachment; filename=\"{job.filename}\"; filename*=UTF-8''{encoded_filename}",
-        "Content-Length": str(job.filesize),
-    }
-
-    return StreamingResponse(
-        stream_media_chunks(job),
-        media_type=job.media_type,
-        headers=headers,
-    )
+    return await extract_info_async(url)
 
 
-@router.get("/download/file")
-async def download_file_direct(
-    url: str = Query(..., description="YouTube URL"),
-    format: Literal["mp3", "mp4"] = Query("mp4"),
-    quality: str = Query("best"),
-):
-    job = await prepare_media_job(url, format, quality)
-    encoded_filename = urllib.parse.quote(job.filename)
-    headers = {
-        "Content-Disposition": f"attachment; filename=\"{job.filename}\"; filename*=UTF-8''{encoded_filename}",
-        "Content-Length": str(job.filesize),
-    }
-
-    return StreamingResponse(
-        stream_media_chunks(job),
-        media_type=job.media_type,
-        headers=headers,
-    )
-
-
-# 4. Audio & Video Trimming
-@router.post("/trim/process", response_model=PreparedMediaResponse)
-async def process_trim(payload: TrimRequest):
-    """
-    Trim audio or video using FFmpeg and bounded downloads.
-    Returns a short-lived download token for the trimmed file.
-    """
-    job = await trim_media_job(
-        payload.url,
-        payload.format,
-        payload.start_time,
-        payload.end_time,
-    )
-    return PreparedMediaResponse(
-        token=job.token,
-        filename=job.filename,
-        filesize=job.filesize,
-        expires_in=storage_manager.ttl_seconds,
-    )
-
-
-# 5. Playlist Management
 @router.get("/playlist/info")
 async def get_playlist_info(url: str = Query(..., description="YouTube or YT Music playlist URL")):
-    """
-    Extract flat track listing for a YouTube or YouTube Music playlist.
-    """
     return await extract_playlist_async(url)
 
 
-# 6. Banana Discover Engine
 @router.api_route("/discover/seed", methods=["GET", "POST"])
 async def discover_seed(
     request: Request,
     payload: Optional[DiscoverSeedRequest] = None,
     query: Optional[str] = Query(None, description="YouTube link or search query"),
 ):
-    """
-    Identify seed song from a YouTube link or artist/title search query (supports POST body or GET ?query=).
-    """
     search_query = query
     if request.method == "POST":
         try:
@@ -342,9 +453,6 @@ async def discover_seed(
 
 @router.api_route("/discover/recommendations", methods=["GET", "POST"])
 async def discover_recommendations(request: Request, payload: Optional[DiscoverRecommendRequest] = None):
-    """
-    Generate ranked recommendations based on seed track and chosen category.
-    """
     if request.method == "GET":
         return {"ok": True, "message": "Discover recommendations endpoint ready. Send POST with seed and category."}
 
@@ -374,16 +482,12 @@ async def discover_recommendations(request: Request, payload: Optional[DiscoverR
         raise HTTPException(status_code=500, detail="Recommendation engine encountered an error.")
 
 
-# 7. Banana Video Search Engine
 @router.api_route("/search", methods=["GET", "POST"])
 async def search_videos(
     request: Request,
     query: Optional[str] = Query(None, description="Video search query"),
     limit: int = Query(20, ge=1, le=50, description="Max search results"),
 ):
-    """
-    Search YouTube videos with rich metadata (views, upload date, channel, badges, likes, dislikes).
-    """
     search_query = query
     max_results = limit
 
@@ -411,7 +515,51 @@ async def search_videos(
         raise HTTPException(status_code=500, detail="Video search service encountered an error.")
 
 
-# Register routes at root and with /api prefix
+# Legacy endpoints
+@router.post("/download/prepare", response_model=PreparedMediaResponse)
+async def prepare_download(payload: MediaRequest):
+    """Legacy prepare endpoint."""
+    job = await prepare_media_job(payload.url, payload.format, payload.quality)
+    return PreparedMediaResponse(
+        token=job.token,
+        filename=job.filename,
+        filesize=job.filesize,
+        expires_in=storage_manager.ttl_seconds,
+    )
+
+
+legacy_prepare_download = prepare_download
+
+
+@router.get("/download/stream")
+async def legacy_stream_download(token: str = Query(..., description="Short-lived opaque download token"), request: Request = None):
+    """Legacy stream endpoint: forward to handle_download_request."""
+    return await handle_download_request(token, request)
+
+
+@router.post("/trim/process", response_model=PreparedMediaResponse)
+async def process_trim(payload: TrimRequest):
+    """Legacy trim endpoint."""
+    if payload.start_time < 0 or payload.end_time <= payload.start_time:
+        raise HTTPException(status_code=400, detail="Invalid timestamp range. Start time must be >= 0 and end time must be > start time.")
+    job = await trim_media_job(
+        payload.url,
+        payload.format,
+        payload.start_time,
+        payload.end_time,
+    )
+    return PreparedMediaResponse(
+        token=job.token,
+        filename=job.filename,
+        filesize=job.filesize,
+        expires_in=storage_manager.ttl_seconds,
+    )
+
+
+legacy_process_trim = process_trim
+
+
+# Dual route registration: at root and with /api prefix
 app.include_router(router)
 app.include_router(router, prefix="/api")
 

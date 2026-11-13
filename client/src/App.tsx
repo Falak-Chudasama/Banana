@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CollectionDrawer } from './components/CollectionDrawer'
 import { DiscoverView } from './components/DiscoverView'
+import { DownloadItem } from './components/downloads/DownloadItem'
+import { DownloadQueue } from './components/downloads/DownloadQueue'
 import { MediaPlayer } from './components/MediaPlayer'
 import { PlaylistView } from './components/PlaylistView'
 import { SearchView } from './components/SearchView'
 import { Select } from './components/Select'
 import { TrimPanel } from './components/TrimPanel'
+import { useDownloadManager } from './hooks/useDownloadManager'
 import {
   AlertIcon,
   BananaMark,
@@ -91,6 +94,28 @@ export default function App() {
   const [duration, setDuration] = useState<number | null>(null)
   const [preparedSize, setPreparedSize] = useState<number | null>(null)
 
+  // Robust Download Manager hook
+  const {
+    jobs,
+    activeJobs,
+    readyJobs,
+    activeCount,
+    startDownloadJob,
+    saveFileToDevice,
+    cancelJob,
+    retryJob,
+    dismissJob,
+    clearCompleted,
+  } = useDownloadManager()
+
+  const [isDownloadQueueOpen, setIsDownloadQueueOpen] = useState(false)
+  const [activeJobId, setActiveJobId] = useState<string | null>(null)
+
+  const activeJob = useMemo(
+    () => (activeJobId ? jobs.find((j) => j.job_id === activeJobId) : undefined),
+    [jobs, activeJobId],
+  )
+
   // In-player active track state
   const [playingTrack, setPlayingTrack] = useState<{
     url: string
@@ -111,7 +136,17 @@ export default function App() {
 
   const trimmedUrl = url.trim()
   const isUrlValid = useMemo(() => isYouTubeUrl(trimmedUrl), [trimmedUrl])
-  const isBusy = status === 'fetching_info' || status === 'preparing'
+  const isJobBusy =
+    Boolean(activeJob &&
+    (activeJob.status === 'queued' ||
+      activeJob.status === 'fetching_metadata' ||
+      activeJob.status === 'downloading' ||
+      activeJob.status === 'post_processing' ||
+      activeJob.status === 'packaging' ||
+      activeJob.status === 'transferring' ||
+      activeJob.client_transfer_status === 'saving'))
+
+  const isBusy = status === 'fetching_info' || isJobBusy
 
   const qualityOptions = useMemo(() => {
     const source = format === 'mp4' ? mp4Qualities : mp3Qualities
@@ -225,36 +260,17 @@ export default function App() {
       return
     }
 
-    cancelActiveRequest()
-    const controller = new AbortController()
-    abortControllerRef.current = controller
-
-    setStatus('preparing')
-    setStatusMessage(
-      format === 'mp4'
-        ? `Preparing video stream (${qualityLabel(format, quality)})…`
-        : `Extracting audio (${qualityLabel(format, quality)})…`,
-    )
     setError('')
-
     try {
-      const prepared = await prepareDownload(trimmedUrl, format, quality, controller.signal)
-
-      if (prepared.filesize) {
-        setPreparedSize(prepared.filesize)
-      }
-
-      setStatusMessage('Stream prepared. Starting download…')
-      triggerBrowserNativeDownload(prepared.token, prepared.filename)
-
-      setStatus('completed')
-      setStatusMessage('Download started. Media will automatically expire from server cache.')
+      const job = await startDownloadJob(trimmedUrl, format, quality, {
+        title: title || undefined,
+        thumbnail: thumbnail || undefined,
+        uploader: uploader || undefined,
+        duration: duration,
+      })
+      setActiveJobId(job.job_id)
     } catch (err: unknown) {
-      if (controller.signal.aborted) return
-      setStatus('error')
-      setError(err instanceof Error ? err.message : 'Processing failed. Please check the URL or try another quality.')
-    } finally {
-      abortControllerRef.current = null
+      setError(err instanceof Error ? err.message : 'Failed to initiate download job.')
     }
   }
 
@@ -295,8 +311,13 @@ export default function App() {
 
   const handleDownloadTrackFromExternal = async (track: TrackItem) => {
     try {
-      const prep = await prepareDownload(track.url, 'mp3', 'best')
-      triggerBrowserNativeDownload(prep.token, prep.filename)
+      const job = await startDownloadJob(track.url, 'mp3', 'best', {
+        title: track.title,
+        thumbnail: track.thumbnail,
+        uploader: track.artist,
+      })
+      setActiveJobId(job.job_id)
+      setIsDownloadQueueOpen(true)
     } catch (err) {
       console.error('Download failed:', err)
     }
@@ -401,12 +422,34 @@ export default function App() {
             </button>
           </nav>
 
-          {/* Right Controls: Collection Drawer + Theme Switcher */}
+          {/* Right Controls: Downloads Queue + Collection Drawer + Theme Switcher */}
           <div className="flex items-center gap-1.5">
             <button
               type="button"
+              onClick={() => setIsDownloadQueueOpen(true)}
+              className="focus-ring flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/80 transition"
+              title="Open downloads manager"
+              aria-label="Open downloads manager"
+            >
+              <DownloadIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              <span>Downloads</span>
+              {jobs.length > 0 && (
+                <span
+                  className={`flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                    activeCount > 0
+                      ? 'bg-amber-500 text-stone-950 animate-pulse'
+                      : 'bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-300'
+                  }`}
+                >
+                  {activeCount > 0 ? activeCount : jobs.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsCollectionOpen(true)}
-              className="focus-ring flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/80 transition"
+              className="focus-ring flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/80 transition"
               title="Open session collection"
               aria-label="Open session collection"
             >
@@ -419,7 +462,7 @@ export default function App() {
               )}
             </button>
 
-            <div className="h-4 w-px bg-stone-200 dark:bg-stone-700 mx-1" aria-hidden="true" />
+            <div className="h-4 w-px bg-stone-200 dark:bg-stone-700 mx-0.5" aria-hidden="true" />
 
             <button
               type="button"
@@ -452,6 +495,25 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsDownloadQueueOpen(true)}
+            className="focus-ring relative flex h-9 w-9 items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
+            title="Downloads"
+            aria-label="Open downloads"
+          >
+            <DownloadIcon className="h-5 w-5 text-amber-500 dark:text-amber-400" />
+            {jobs.length > 0 && (
+              <span
+                className={`absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold ${
+                  activeCount > 0 ? 'bg-amber-500 text-stone-950 animate-pulse' : 'bg-stone-500 text-white'
+                }`}
+              >
+                {activeCount > 0 ? activeCount : jobs.length}
+              </span>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={() => setIsCollectionOpen(true)}
@@ -693,14 +755,14 @@ export default function App() {
                     disabled={!trimmedUrl || isBusy}
                     className="focus-ring inline-flex h-12 sm:h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 text-sm sm:text-base font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300 dark:disabled:bg-stone-800/80 dark:disabled:text-stone-600"
                   >
-                    {status === 'preparing' ? (
+                    {isJobBusy ? (
                       <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
                     ) : (
                       <DownloadIcon className="h-4 w-4" />
                     )}
                     <span>
-                      {status === 'preparing'
-                        ? 'Processing…'
+                      {isJobBusy
+                        ? (activeJob?.current_message || 'Processing…')
                         : format === 'mp4'
                           ? 'Download MP4'
                           : 'Download MP3'}
@@ -722,13 +784,44 @@ export default function App() {
                   {isBusy && (
                     <button
                       type="button"
-                      onClick={cancelActiveRequest}
+                      onClick={() => {
+                        cancelActiveRequest()
+                        if (activeJob) cancelJob(activeJob.job_id)
+                      }}
                       className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-600 transition hover:bg-stone-50 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-400 dark:hover:bg-[#20211C]"
                     >
                       Cancel
                     </button>
                   )}
                 </div>
+
+                {/* Active Download Job Real-Time Progress Card */}
+                {activeJob && (
+                  <div className="mt-5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                        Active Download Progress
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsDownloadQueueOpen(true)}
+                        className="text-[11px] font-semibold text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
+                      >
+                        View All in Queue &rarr;
+                      </button>
+                    </div>
+                    <DownloadItem
+                      job={activeJob}
+                      onSave={saveFileToDevice}
+                      onCancel={cancelJob}
+                      onRetry={retryJob}
+                      onDismiss={(id) => {
+                        dismissJob(id)
+                        if (activeJobId === id) setActiveJobId(null)
+                      }}
+                    />
+                  </div>
+                )}
 
                 {/* Status updates / Active progress banner */}
                 {statusMessage && (
@@ -953,6 +1046,18 @@ export default function App() {
         onRemoveTrack={removeFromCollection}
         onClearCollection={clearCollection}
         onDownloadTrack={handleDownloadTrackFromExternal}
+      />
+
+      {/* Floating Download Queue Drawer */}
+      <DownloadQueue
+        jobs={jobs}
+        isOpen={isDownloadQueueOpen}
+        onClose={() => setIsDownloadQueueOpen(false)}
+        onSave={saveFileToDevice}
+        onCancel={cancelJob}
+        onRetry={retryJob}
+        onDismiss={dismissJob}
+        onClearCompleted={clearCompleted}
       />
 
       {/* 

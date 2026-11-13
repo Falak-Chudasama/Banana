@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { formatDuration, prepareDownload, triggerBrowserNativeDownload } from '../lib/media'
+import type { JobRecord } from '../lib/jobTypes'
+import { formatDuration } from '../lib/media'
 import { fetchPlaylistInfo } from '../lib/playlist'
 import type { PlaylistData, TrackItem } from '../lib/types'
+import { downloadManager } from '../services/downloadManager'
 import {
   AlertIcon,
+  CheckCircleIcon,
   CloseIcon,
   CollectionIcon,
   DownloadIcon,
@@ -29,9 +32,9 @@ export function PlaylistView({
   const [playlist, setPlaylist] = useState<PlaylistData | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  // Batch download state
+  // Batch download state powered by JobManager
+  const [activeBatchJob, setActiveBatchJob] = useState<JobRecord | null>(null)
   const [isBatchDownloading, setIsBatchDownloading] = useState(false)
-  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; currentTitle: string } | null>(null)
 
   const handleFetchPlaylist = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -80,23 +83,43 @@ export function PlaylistView({
     if (selectedTracks.length === 0) return
 
     setIsBatchDownloading(true)
-    setBatchProgress({ current: 0, total: selectedTracks.length, currentTitle: '' })
+    setError('')
 
-    for (let i = 0; i < selectedTracks.length; i++) {
-      const track = selectedTracks[i]
-      setBatchProgress({ current: i + 1, total: selectedTracks.length, currentTitle: track.title })
+    try {
+      const parentJob = await downloadManager.startPlaylistJob(
+        url,
+        'mp3',
+        'best',
+        selectedTracks.map((t) => t.id),
+      )
+      setActiveBatchJob(parentJob)
 
-      try {
-        const prep = await prepareDownload(track.url, 'mp3', 'best')
-        triggerBrowserNativeDownload(prep.token, prep.filename)
-        await new Promise((r) => setTimeout(r, 600))
-      } catch (err) {
-        console.error(`Failed downloading ${track.title}:`, err)
-      }
+      const unsub = downloadManager.subscribe((jobs) => {
+        const current = jobs.find((j) => j.job_id === parentJob.job_id)
+        if (current) {
+          setActiveBatchJob(current)
+          if (
+            current.status === 'completed' ||
+            current.status === 'ready' ||
+            current.status === 'failed' ||
+            current.status === 'cancelled'
+          ) {
+            setIsBatchDownloading(false)
+            unsub()
+          }
+        }
+      })
+    } catch (err: any) {
+      setIsBatchDownloading(false)
+      setError(err?.message || 'Failed to start batch playlist download.')
     }
+  }
 
-    setIsBatchDownloading(false)
-    setBatchProgress(null)
+  const handleCancelBatch = async () => {
+    if (activeBatchJob) {
+      await downloadManager.cancelJob(activeBatchJob.job_id)
+      setIsBatchDownloading(false)
+    }
   }
 
   const handleAddSelectedToCollection = () => {
@@ -224,19 +247,40 @@ export function PlaylistView({
           </div>
 
           {/* Batch Progress Bar */}
-          {batchProgress && (
+          {activeBatchJob && (
             <div className="animate-fade-in my-4 rounded-xl border border-amber-200 bg-amber-50/70 dark:border-amber-900/30 dark:bg-amber-950/20 p-4 text-xs sm:text-sm font-semibold">
-              <div className="flex justify-between text-stone-900 dark:text-stone-100">
-                <span className="truncate pr-2">Downloading: {batchProgress.currentTitle}</span>
-                <span className="shrink-0 font-mono text-amber-700 dark:text-amber-400">
-                  {batchProgress.current} / {batchProgress.total}
+              <div className="flex items-center justify-between text-stone-900 dark:text-stone-100">
+                <span className="truncate pr-2">
+                  {activeBatchJob.playlist_current_track_title
+                    ? `Processing: ${activeBatchJob.playlist_current_track_title}`
+                    : activeBatchJob.current_message}
                 </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="font-mono text-amber-700 dark:text-amber-400">
+                    {activeBatchJob.playlist_current_track_index || 0} / {activeBatchJob.playlist_total_tracks || selectedIds.size}
+                  </span>
+                  {isBatchDownloading && (
+                    <button
+                      type="button"
+                      onClick={handleCancelBatch}
+                      className="rounded-md border border-stone-300 bg-white px-2 py-0.5 text-xs font-medium text-stone-600 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-stone-200 dark:bg-stone-700">
                 <div
                   className="h-full bg-amber-500 dark:bg-amber-400 transition-all duration-300"
-                  style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                  style={{ width: `${activeBatchJob.percent || 0}%` }}
                 />
+              </div>
+              <div className="mt-1.5 flex justify-between text-[11px] text-stone-500 dark:text-stone-400">
+                <span>
+                  {activeBatchJob.playlist_completed_tracks || 0} completed &middot; {activeBatchJob.playlist_failed_tracks || 0} failed
+                </span>
+                <span>{activeBatchJob.percent || 0}%</span>
               </div>
             </div>
           )}

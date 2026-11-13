@@ -1,11 +1,11 @@
 import { useState } from 'react'
+import type { JobRecord } from '../lib/jobTypes'
 import {
   formatDuration,
   formatFileSize,
-  processTrim,
-  triggerBrowserNativeDownload,
 } from '../lib/media'
-import type { MediaFormat, PreparedDownload } from '../lib/types'
+import type { MediaFormat } from '../lib/types'
+import { downloadManager } from '../services/downloadManager'
 import {
   AlertIcon,
   CheckCircleIcon,
@@ -53,7 +53,8 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
 
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState('')
-  const [prepared, setPrepared] = useState<PreparedDownload | null>(null)
+  const [trimJob, setTrimJob] = useState<JobRecord | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const selectedDuration = Math.max(0, endTime - startTime)
 
@@ -95,15 +96,49 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
 
     setIsProcessing(true)
     setError('')
-    setPrepared(null)
+    setTrimJob(null)
 
     try {
-      const res = await processTrim(url, format, startTime, endTime)
-      setPrepared(res)
+      const job = await downloadManager.startTrimJob(
+        url,
+        format,
+        startTime,
+        endTime,
+      )
+      setTrimJob(job)
+
+      // Listen to progress for this trim job
+      const unsub = downloadManager.subscribe((jobs) => {
+        const current = jobs.find((j) => j.job_id === job.job_id)
+        if (current) {
+          setTrimJob(current)
+          if (current.status === 'ready' || current.status === 'completed') {
+            setIsProcessing(false)
+          } else if (current.status === 'failed') {
+            setIsProcessing(false)
+            setError(current.user_facing_error || 'Trimming operation failed.')
+            unsub()
+          } else if (current.status === 'cancelled') {
+            setIsProcessing(false)
+            unsub()
+          }
+        }
+      })
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Trimming failed. Please check inputs.')
-    } finally {
       setIsProcessing(false)
+      setError(err instanceof Error ? err.message : 'Trimming failed. Please check inputs.')
+    }
+  }
+
+  const handleSaveTrimmedFile = async () => {
+    if (!trimJob) return
+    setIsSaving(true)
+    try {
+      await downloadManager.saveFileToDevice(trimJob.job_id)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save file to device.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -251,27 +286,34 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
           ) : (
             <ScissorsIcon className="h-4 w-4" />
           )}
-          <span>{isProcessing ? 'Trimming Clip…' : 'Export Trimmed Clip'}</span>
+          <span>{isProcessing ? (trimJob?.current_message || 'Trimming Clip…') : 'Export Trimmed Clip'}</span>
         </button>
       </div>
 
       {/* Success banner */}
-      {prepared && (
+      {trimJob && trimJob.status === 'ready' && (
         <div className="animate-fade-in mt-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/90 dark:border-emerald-800/40 dark:bg-emerald-950/40 p-3.5 text-sm text-emerald-900 dark:text-emerald-200 shadow-2xs">
           <div className="flex items-center gap-2.5 min-w-0">
             <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <div className="min-w-0">
-              <p className="truncate font-bold">{prepared.filename}</p>
-              <p className="text-xs text-emerald-700 dark:text-emerald-300">Ready · {formatFileSize(prepared.filesize)}</p>
+              <p className="truncate font-bold">{trimJob.output_filename}</p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                Ready &middot; {formatFileSize(trimJob.output_size_bytes || 0)}
+              </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => triggerBrowserNativeDownload(prepared.token, prepared.filename)}
-            className="focus-ring shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition active:scale-95"
+            onClick={handleSaveTrimmedFile}
+            disabled={isSaving}
+            className="focus-ring shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition active:scale-95 disabled:opacity-50"
           >
-            <DownloadIcon className="h-3.5 w-3.5" />
-            <span>Download</span>
+            {isSaving ? (
+              <SpinnerIcon className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <DownloadIcon className="h-3.5 w-3.5" />
+            )}
+            <span>Save to Device</span>
           </button>
         </div>
       )}
