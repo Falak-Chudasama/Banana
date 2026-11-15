@@ -395,12 +395,13 @@ async def preview_stream(
     request: Request,
     url: str = Query(..., description="YouTube URL to stream"),
     format: Literal["audio", "video"] = Query("audio"),
+    quality: str = Query("auto", description="Streaming quality: auto, 1080p, 720p, 480p, 360p, 240p"),
 ):
     """
     On-demand seekable media preview using HTTP Range requests (206 Partial Content).
     Enables native HTML5 audio and video playback without pre-downloading.
     """
-    return await handle_preview_stream(url, format, request)
+    return await handle_preview_stream(url, format, request, quality=quality)
 
 
 # =========================================================================

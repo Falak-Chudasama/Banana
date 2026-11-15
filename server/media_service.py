@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
 import re
 import shutil
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Tuple
@@ -18,6 +20,9 @@ from validator import is_valid_youtube_url, sanitize_filename
 
 logger = logging.getLogger("banana.media")
 
+_NODE_EXE = shutil.which("node") or shutil.which("nodejs") or r"C:\Program Files\nodejs\node.exe"
+_NODE_PATH = _NODE_EXE if Path(_NODE_EXE).exists() else None
+
 YDL_BASE_OPTS = {
     "quiet": True,
     "no_warnings": True,
@@ -30,22 +35,95 @@ YDL_BASE_OPTS = {
             "player_client": ["android", "web"],
         }
     },
-    "js_runtimes": {"node": {}},
+    "js_runtimes": {"node": {"path": _NODE_PATH}} if _NODE_PATH else {},
 }
 
 
 def mp4_format_selector(quality: str) -> str:
+    """
+    Construct yt-dlp format selector that guarantees Windows Media Player compatibility.
+    Strongly prioritizes H.264 (avc1/avc) video and AAC (mp4a/m4a) audio to avoid error 0xC00D36C4.
+    """
     q = quality.strip().lower()
-    mapping = {
-        "best": "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/18/best",
-        "2160p": "bv*[height<=2160][ext=mp4]+ba[ext=m4a]/b[height<=2160]/18/best",
-        "1440p": "bv*[height<=1440][ext=mp4]+ba[ext=m4a]/b[height<=1440]/18/best",
-        "1080p": "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080]/18/best",
-        "720p": "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720]/18/best",
-        "480p": "bv*[height<=480][ext=mp4]+ba[ext=m4a]/b[height<=480]/18/best",
-        "360p": "18/b[height<=360]/best",
-    }
-    return mapping.get(q, "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/18/best")
+    height_limit = {
+        "2160p": 2160,
+        "1440p": 1440,
+        "1080p": 1080,
+        "720p": 720,
+        "480p": 480,
+        "360p": 360,
+        "240p": 240,
+    }.get(q)
+
+    if height_limit:
+        return (
+            f"bv*[height<={height_limit}][vcodec^=avc]+ba[acodec^=mp4a]/"
+            f"bv*[height<={height_limit}][vcodec^=avc]+ba[ext=m4a]/"
+            f"bv*[height<={height_limit}][vcodec^=avc]+ba/"
+            f"b[height<={height_limit}][vcodec^=avc]/"
+            f"bv*[height<={height_limit}][ext=mp4]+ba[ext=m4a]/"
+            f"b[height<={height_limit}][ext=mp4]/best[height<={height_limit}]"
+        )
+    return (
+        "bv*[vcodec^=avc]+ba[acodec^=mp4a]/"
+        "bv*[vcodec^=avc]+ba[ext=m4a]/"
+        "bv*[vcodec^=avc]+ba/"
+        "b[vcodec^=avc]/"
+        "bv*[ext=mp4]+ba[ext=m4a]/"
+        "b[ext=mp4]/18/best"
+    )
+
+
+def ensure_windows_compatible_mp4(filepath: Path) -> Path:
+    """
+    Ensure MP4 container contains H.264 video and AAC audio for 100% universal Windows Media Player
+    and QuickTime playback, eliminating codec error 0xC00D36C4.
+    """
+    if not filepath.exists() or filepath.suffix.lower() != ".mp4":
+        return filepath
+
+    try:
+        probe_cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=codec_name",
+            "-of", "json",
+            str(filepath),
+        ]
+        res = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
+        if res.returncode == 0:
+            data = json.loads(res.stdout)
+            streams = data.get("streams", [])
+            codec = streams[0].get("codec_name", "").lower() if streams else ""
+            if codec in ("h264", "avc1"):
+                return filepath
+
+            logger.info(
+                f"Detected non-H264 video codec ({codec}) in {filepath.name}. "
+                "Transcoding to universal H.264 for Windows Media Player compatibility..."
+            )
+            temp_output = filepath.with_name(f"compatible_{filepath.name}")
+            transcode_cmd = [
+                "ffmpeg",
+                "-y",
+                "-i", str(filepath),
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", "22",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-movflags", "+faststart",
+                str(temp_output),
+            ]
+            t_res = subprocess.run(transcode_cmd, capture_output=True, text=True, timeout=300)
+            if t_res.returncode == 0 and temp_output.exists() and temp_output.stat().st_size > 0:
+                temp_output.replace(filepath)
+                logger.info(f"Successfully converted {filepath.name} to universal H.264 MP4.")
+    except Exception as exc:
+        logger.warning(f"Windows MP4 compatibility check skipped/failed: {exc}")
+
+    return filepath
 
 
 def pick_final_file(workdir: Path, expected_ext: Literal["mp3", "mp4"]) -> Path:
@@ -288,6 +366,9 @@ def _sync_execute_download(
             "outtmpl": outtmpl,
             "format": mp4_format_selector(quality),
             "merge_output_format": "mp4",
+            "postprocessor_args": {
+                "merger": ["-c:a", "aac", "-movflags", "+faststart"],
+            },
             "restrictfilenames": False,
             "windowsfilenames": True,
             "progress_hooks": [tracker.progress_hook],
@@ -316,6 +397,8 @@ def _sync_execute_download(
         info = ydl.extract_info(url, download=True)
 
     final_file = pick_final_file(workdir, output_format)
+    if output_format == "mp4":
+        final_file = ensure_windows_compatible_mp4(final_file)
     filesize = final_file.stat().st_size
     raw_title = info.get("title") or "banana_media"
     title = sanitize_filename(raw_title)
@@ -389,6 +472,9 @@ def _sync_download(
             "outtmpl": outtmpl,
             "format": mp4_format_selector(quality),
             "merge_output_format": "mp4",
+            "postprocessor_args": {
+                "merger": ["-c:a", "aac", "-movflags", "+faststart"],
+            },
             "restrictfilenames": False,
             "windowsfilenames": True,
         }
@@ -420,6 +506,8 @@ def _sync_download(
         raise HTTPException(status_code=500, detail="Media processing failed. Please try again.") from exc
 
     final_file = pick_final_file(workdir, output_format)
+    if output_format == "mp4":
+        final_file = ensure_windows_compatible_mp4(final_file)
     title = sanitize_filename(info.get("title") or "banana_download")
     return final_file, title
 

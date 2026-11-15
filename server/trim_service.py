@@ -13,6 +13,7 @@ from media_service import (
     BananaProgressTracker,
     YDL_BASE_OPTS,
     categorize_error,
+    ensure_windows_compatible_mp4,
     mp4_format_selector,
     pick_final_file,
 )
@@ -50,8 +51,11 @@ def _sync_execute_trim(
         ydl_opts = {
             **YDL_BASE_OPTS,
             "outtmpl": outtmpl,
-            "format": "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/18/best",
+            "format": mp4_format_selector("best"),
             "merge_output_format": "mp4",
+            "postprocessor_args": {
+                "merger": ["-c:a", "aac", "-movflags", "+faststart"],
+            },
             "download_ranges": range_fn,
             "force_keyframes_at_cuts": True,
             "windowsfilenames": True,
@@ -81,6 +85,8 @@ def _sync_execute_trim(
         info = ydl.extract_info(url, download=True)
 
     final_file = pick_final_file(workdir, output_format)
+    if output_format == "mp4":
+        final_file = ensure_windows_compatible_mp4(final_file)
     filesize = final_file.stat().st_size
     raw_title = info.get("title") or "banana_trimmed"
     title = f"{sanitize_filename(raw_title)}_trim_{int(start_time)}s_{int(end_time)}s"
@@ -158,8 +164,11 @@ def _sync_trim_media(
         ydl_opts = {
             **YDL_BASE_OPTS,
             "outtmpl": outtmpl,
-            "format": "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/18/best",
+            "format": mp4_format_selector("best"),
             "merge_output_format": "mp4",
+            "postprocessor_args": {
+                "merger": ["-c:a", "aac", "-movflags", "+faststart"],
+            },
             "download_ranges": range_fn,
             "force_keyframes_at_cuts": True,
             "windowsfilenames": True,
@@ -192,6 +201,8 @@ def _sync_trim_media(
         raise HTTPException(status_code=500, detail="Media trimming failed. Please check timestamps.") from exc
 
     final_file = pick_final_file(workdir, output_format)
+    if output_format == "mp4":
+        final_file = ensure_windows_compatible_mp4(final_file)
     raw_title = info.get("title") or "banana_trimmed"
     title = f"{sanitize_filename(raw_title)}_trim_{int(start_time)}s_{int(end_time)}s"
     return final_file, title

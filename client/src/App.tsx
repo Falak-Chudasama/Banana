@@ -179,6 +179,9 @@ export default function App() {
     setIsTrimOpen(false)
   }
 
+  // Track loaded URL to avoid redundant auto-fetch calls
+  const loadedUrlRef = useRef<string>('')
+
   const handleUrlChange = (newVal: string) => {
     setUrl(newVal)
     if (error) setError('')
@@ -187,7 +190,10 @@ export default function App() {
     if (isBusy) {
       cancelActiveRequest()
     }
-    resetMediaPreview()
+    if (!newVal.trim()) {
+      loadedUrlRef.current = ''
+      resetMediaPreview()
+    }
   }
 
   const handleClearUrl = () => {
@@ -195,6 +201,7 @@ export default function App() {
     setUrl('')
     setError('')
     setStatus('idle')
+    loadedUrlRef.current = ''
     resetMediaPreview()
   }
 
@@ -225,6 +232,7 @@ export default function App() {
 
     try {
       const data = await fetchMediaInfo(trimmedUrl, controller.signal)
+      loadedUrlRef.current = trimmedUrl
       setTitle(data.title || '')
       setThumbnail(data.thumbnail || '')
       setUploader(data.uploader || '')
@@ -238,6 +246,7 @@ export default function App() {
         title: data.title || 'Loaded Media',
         artist: data.uploader || '',
         thumbnail: data.thumbnail || '',
+        format: format === 'mp4' ? 'video' : 'audio',
       })
     } catch (err: unknown) {
       if (controller.signal.aborted) return
@@ -248,6 +257,19 @@ export default function App() {
       abortControllerRef.current = null
     }
   }
+
+  // Automatically load details whenever any valid YouTube link is entered or pasted
+  useEffect(() => {
+    if (!trimmedUrl || !isUrlValid) return
+
+    if (loadedUrlRef.current === trimmedUrl || status === 'fetching_info') return
+
+    const timer = window.setTimeout(() => {
+      handleFetchInfo()
+    }, 380)
+
+    return () => window.clearTimeout(timer)
+  }, [trimmedUrl, isUrlValid, status])
 
   const handleDownload = async () => {
     if (!trimmedUrl) {
@@ -355,10 +377,10 @@ export default function App() {
         DESKTOP NAVIGATION: Floating Glass Capsule (>= 640px)
         Follows Kiwi Dual-Mode Navigation Architecture
       */}
-      <header className="sticky top-4 z-40 mx-auto hidden w-full max-w-4xl px-4 sm:block">
+      <header className="sticky top-4 z-40 mx-auto hidden w-full max-w-5xl px-4 sm:block">
         <div className="glass-capsule flex items-center justify-between gap-3 rounded-full px-5 py-2.5 shadow-floating">
           {/* Brand Logo & Wordmark */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 shrink-0">
             <div className="flex h-9 w-9 items-center justify-center rounded-full border border-black/[0.06] bg-white p-1.5 shadow-2xs dark:border-white/[0.08] dark:bg-stone-800">
               <BananaMark className="h-6 w-auto drop-shadow-sm transition-transform hover:scale-105" />
             </div>
@@ -368,7 +390,7 @@ export default function App() {
           </div>
 
           {/* Primary Navigation Pill Links */}
-          <nav aria-label="Main Navigation" className="flex items-center gap-1">
+          <nav aria-label="Main Navigation" className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('download')}
@@ -423,7 +445,7 @@ export default function App() {
           </nav>
 
           {/* Right Controls: Downloads Queue + Collection Drawer + Theme Switcher */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsDownloadQueueOpen(true)}
@@ -571,6 +593,7 @@ export default function App() {
               artist={playingTrack.artist}
               thumbnail={playingTrack.thumbnail}
               initialFormat={playingTrack.format || 'audio'}
+              initialQuality={quality}
               onTrimRequested={() => setIsTrimOpen(!isTrimOpen)}
               onDownloadRequested={() => {
                 if (url !== playingTrack.url) {
@@ -697,7 +720,7 @@ export default function App() {
                         role="radio"
                         aria-checked={format === 'mp4'}
                         onClick={() => handleFormatChange('mp4')}
-                        className={`focus-ring flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold transition ${
+                        className={`focus-ring flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold whitespace-nowrap transition ${
                           format === 'mp4'
                             ? 'bg-white text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
                             : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
@@ -710,7 +733,7 @@ export default function App() {
                         role="radio"
                         aria-checked={format === 'mp3'}
                         onClick={() => handleFormatChange('mp3')}
-                        className={`focus-ring flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold transition ${
+                        className={`focus-ring flex items-center justify-center rounded-lg text-xs sm:text-sm font-bold whitespace-nowrap transition ${
                           format === 'mp3'
                             ? 'bg-white text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
                             : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
@@ -734,12 +757,12 @@ export default function App() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
+                <div className="mt-7 flex flex-wrap items-center gap-2.5 sm:gap-3">
                   <button
                     type="button"
                     onClick={handleFetchInfo}
                     disabled={!trimmedUrl || isBusy}
-                    className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-xl border border-stone-200/90 bg-white px-5 text-sm font-bold text-stone-700 shadow-2xs transition hover:bg-stone-50 hover:text-stone-900 active:scale-95 disabled:cursor-not-allowed disabled:border-stone-200/60 disabled:bg-stone-100/60 disabled:text-stone-400 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white dark:disabled:border-white/[0.04] dark:disabled:bg-stone-900/40 dark:disabled:text-stone-600"
+                    className="focus-ring inline-flex h-12 sm:h-13 shrink-0 items-center justify-center gap-2 rounded-xl border border-stone-200/90 bg-white px-4 sm:px-5 text-sm font-bold text-stone-700 shadow-2xs transition hover:bg-stone-50 hover:text-stone-900 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:border-stone-200/60 disabled:bg-stone-100/60 disabled:text-stone-400 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white dark:disabled:border-white/[0.04] dark:disabled:bg-stone-900/40 dark:disabled:text-stone-600"
                   >
                     {status === 'fetching_info' ? (
                       <SpinnerIcon className="h-4 w-4 animate-spin text-amber-500 dark:text-amber-400" />
@@ -753,7 +776,7 @@ export default function App() {
                     type="button"
                     onClick={handleDownload}
                     disabled={!trimmedUrl || isBusy}
-                    className="focus-ring inline-flex h-12 sm:h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 text-sm sm:text-base font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300 dark:disabled:bg-stone-800/80 dark:disabled:text-stone-600"
+                    className="focus-ring inline-flex h-12 sm:h-13 min-w-[140px] flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 sm:px-6 text-sm sm:text-base font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300 dark:disabled:bg-stone-800/80 dark:disabled:text-stone-600"
                   >
                     {isJobBusy ? (
                       <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
@@ -762,7 +785,7 @@ export default function App() {
                     )}
                     <span>
                       {isJobBusy
-                        ? (activeJob?.current_message || 'Processing…')
+                        ? 'Processing…'
                         : format === 'mp4'
                           ? 'Download MP4'
                           : 'Download MP3'}
@@ -773,7 +796,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setIsTrimOpen(!isTrimOpen)}
-                      className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-700 shadow-2xs hover:bg-stone-50 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white"
+                      className="focus-ring inline-flex h-12 sm:h-13 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-700 shadow-2xs hover:bg-stone-50 active:scale-95 whitespace-nowrap dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white"
                       title="Trim media clip"
                     >
                       <ScissorsIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
@@ -788,7 +811,7 @@ export default function App() {
                         cancelActiveRequest()
                         if (activeJob) cancelJob(activeJob.job_id)
                       }}
-                      className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-600 transition hover:bg-stone-50 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-400 dark:hover:bg-[#20211C]"
+                      className="focus-ring inline-flex h-12 sm:h-13 shrink-0 items-center justify-center rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-600 transition hover:bg-stone-50 active:scale-95 whitespace-nowrap dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-400 dark:hover:bg-[#20211C]"
                     >
                       Cancel
                     </button>

@@ -15,9 +15,9 @@ from validator import is_valid_youtube_url
 logger = logging.getLogger("banana.stream")
 
 # In-memory stream cache
-# Key: (url, stream_type) -> (direct_url, mime_type, total_size, http_headers, expires_at)
-_STREAM_CACHE: Dict[Tuple[str, str], Tuple[str, str, int, dict, float]] = {}
-_STREAM_LOCKS: Dict[Tuple[str, str], asyncio.Lock] = {}
+# Key: (url, stream_type, quality) -> (direct_url, mime_type, total_size, http_headers, expires_at)
+_STREAM_CACHE: Dict[Tuple[str, str, str], Tuple[str, str, int, dict, float]] = {}
+_STREAM_LOCKS: Dict[Tuple[str, str, str], asyncio.Lock] = {}
 _GLOBAL_LOCK = asyncio.Lock()
 _CACHE_TTL = 300.0  # 5 minutes
 
@@ -33,7 +33,11 @@ HOP_BY_HOP_HEADERS = {
 }
 
 
-def _sync_get_direct_stream(url: str, stream_type: Literal["audio", "video"]) -> Tuple[str, str, int, dict]:
+def _sync_get_direct_stream(
+    url: str,
+    stream_type: Literal["audio", "video"],
+    quality: str = "auto",
+) -> Tuple[str, str, int, dict]:
     ydl_opts = {
         **YDL_BASE_OPTS,
         "skip_download": True,
@@ -57,22 +61,45 @@ def _sync_get_direct_stream(url: str, stream_type: Literal["audio", "video"]) ->
             else:
                 chosen = audio_formats[0]
     else:
-        f18 = [f for f in formats if f.get("url") and f.get("format_id") == "18"]
-        if f18:
-            chosen = f18[0]
-        else:
-            progressive = [
-                f for f in formats
-                if f.get("url")
-                and f.get("vcodec") != "none"
-                and f.get("acodec") != "none"
-            ]
-            if progressive:
-                chosen = progressive[0]
+        q = quality.strip().lower()
+        target_height = {
+            "2160p": 2160,
+            "1440p": 1440,
+            "1080p": 1080,
+            "720p": 720,
+            "480p": 480,
+            "360p": 360,
+            "240p": 240,
+            "144p": 144,
+        }.get(q)
+
+        # Progressive formats (both video and audio streams multiplexed)
+        progressive = [
+            f for f in formats
+            if f.get("url")
+            and f.get("vcodec") != "none"
+            and f.get("acodec") != "none"
+        ]
+
+        if progressive:
+            if target_height:
+                matching = [f for f in progressive if (f.get("height") or 0) <= target_height]
+                if matching:
+                    chosen = max(matching, key=lambda f: f.get("height") or 0)
+                else:
+                    chosen = min(progressive, key=lambda f: f.get("height") or 0)
+            elif q in ("auto", "best"):
+                chosen = max(progressive, key=lambda f: f.get("height") or 0)
             else:
-                any_video = [f for f in formats if f.get("url") and f.get("vcodec") != "none"]
-                if any_video:
-                    chosen = any_video[0]
+                chosen = progressive[0]
+        else:
+            any_video = [f for f in formats if f.get("url") and f.get("vcodec") != "none"]
+            if any_video:
+                if target_height:
+                    matching = [f for f in any_video if (f.get("height") or 0) <= target_height]
+                    chosen = max(matching, key=lambda f: f.get("height") or 0) if matching else any_video[0]
+                else:
+                    chosen = max(any_video, key=lambda f: f.get("height") or 0)
 
     if not chosen or not chosen.get("url"):
         raise HTTPException(status_code=404, detail="No direct playable stream found for this media.")
@@ -90,9 +117,14 @@ def _sync_get_direct_stream(url: str, stream_type: Literal["audio", "video"]) ->
     return direct_url, mime, filesize, headers
 
 
-async def get_direct_stream_info(url: str, stream_type: Literal["audio", "video"], force_refresh: bool = False) -> Tuple[str, str, int, dict]:
+async def get_direct_stream_info(
+    url: str,
+    stream_type: Literal["audio", "video"],
+    quality: str = "auto",
+    force_refresh: bool = False,
+) -> Tuple[str, str, int, dict]:
     now = time.time()
-    cache_key = (url, stream_type)
+    cache_key = (url, stream_type, quality.strip().lower())
 
     if not force_refresh and cache_key in _STREAM_CACHE:
         direct_url, mime, size, headers, exp = _STREAM_CACHE[cache_key]
@@ -112,7 +144,9 @@ async def get_direct_stream_info(url: str, stream_type: Literal["audio", "video"
             if now < exp:
                 return direct_url, mime, size, headers
 
-        direct_url, mime, size, headers = await asyncio.to_thread(_sync_get_direct_stream, url, stream_type)
+        direct_url, mime, size, headers = await asyncio.to_thread(
+            _sync_get_direct_stream, url, stream_type, quality
+        )
         _STREAM_CACHE[cache_key] = (direct_url, mime, size, headers, now + _CACHE_TTL)
         return direct_url, mime, size, headers
 
@@ -138,11 +172,14 @@ async def handle_preview_stream(
     url: str,
     stream_type: Literal["audio", "video"],
     request: Request,
+    quality: str = "auto",
 ) -> Response:
     if not is_valid_youtube_url(url):
         raise HTTPException(status_code=400, detail="Invalid YouTube URL.")
 
-    direct_url, mime_type, total_size, upstream_headers = await get_direct_stream_info(url, stream_type)
+    direct_url, mime_type, total_size, upstream_headers = await get_direct_stream_info(
+        url, stream_type, quality=quality
+    )
 
     req_headers = {k: v for k, v in upstream_headers.items() if k.lower() not in HOP_BY_HOP_HEADERS}
     range_header = request.headers.get("range")
@@ -165,10 +202,10 @@ async def handle_preview_stream(
             upstream.close()
         except Exception:
             pass
-        _STREAM_CACHE.pop((url, stream_type), None)
+        _STREAM_CACHE.pop((url, stream_type, quality.strip().lower()), None)
         try:
             direct_url, mime_type, total_size, upstream_headers = await get_direct_stream_info(
-                url, stream_type, force_refresh=True
+                url, stream_type, quality=quality, force_refresh=True
             )
             req_headers = {k: v for k, v in upstream_headers.items() if k.lower() not in HOP_BY_HOP_HEADERS}
             if range_header:

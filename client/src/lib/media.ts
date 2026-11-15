@@ -101,8 +101,12 @@ export function formatFileSize(bytes: number): string {
   return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
 }
 
-export function buildStreamPreviewUrl(url: string, format: 'audio' | 'video' = 'audio'): string {
-  const params = new URLSearchParams({ url: url.trim(), format })
+export function buildStreamPreviewUrl(
+  url: string,
+  format: 'audio' | 'video' = 'audio',
+  quality: string = 'auto'
+): string {
+  const params = new URLSearchParams({ url: url.trim(), format, quality })
   return `${BACKEND}/stream/preview?${params.toString()}`
 }
 

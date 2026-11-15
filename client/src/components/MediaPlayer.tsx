@@ -19,6 +19,7 @@ interface MediaPlayerProps {
   artist?: string
   thumbnail?: string
   initialFormat?: 'audio' | 'video'
+  initialQuality?: string
   onTrimRequested?: () => void
   onDownloadRequested?: () => void
   onAddToCollection?: () => void
@@ -31,12 +32,14 @@ export function MediaPlayer({
   artist,
   thumbnail,
   initialFormat = 'audio',
+  initialQuality = 'auto',
   onTrimRequested,
   onDownloadRequested,
   onAddToCollection,
   isTrimOpen = false,
 }: MediaPlayerProps) {
   const [format, setFormat] = useState<'audio' | 'video'>(initialFormat)
+  const [videoQuality, setVideoQuality] = useState<string>(initialQuality)
   const [isPlaying, setIsPlaying] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [currentTime, setCurrentTime] = useState(0)
@@ -49,12 +52,19 @@ export function MediaPlayer({
   const mediaRef = useRef<HTMLMediaElement | null>(null)
   const videoContainerRef = useRef<HTMLDivElement | null>(null)
   const shouldPlayRef = useRef(true)
+  const lastTimeRef = useRef<number>(0)
 
   useEffect(() => {
     if (initialFormat) {
       setFormat(initialFormat)
     }
   }, [initialFormat, url])
+
+  useEffect(() => {
+    if (initialQuality) {
+      setVideoQuality(initialQuality)
+    }
+  }, [initialQuality, url])
 
   useEffect(() => {
     const handleFsChange = () => {
@@ -75,7 +85,21 @@ export function MediaPlayer({
     }
   }
 
-  const streamSrc = buildStreamPreviewUrl(url, format)
+  const streamSrc = buildStreamPreviewUrl(
+    url,
+    format,
+    format === 'video' ? videoQuality : 'auto'
+  )
+
+  const handleQualityChange = (newQuality: string) => {
+    if (newQuality === videoQuality) return
+    const el = mediaRef.current
+    if (el) {
+      lastTimeRef.current = el.currentTime
+    }
+    setVideoQuality(newQuality)
+    setIsLoading(true)
+  }
 
   const attemptPlay = () => {
     const el = mediaRef.current
@@ -212,11 +236,17 @@ export function MediaPlayer({
             }}
             onLoadedMetadata={(e) => {
               setDuration(e.currentTarget.duration || 0)
+              if (lastTimeRef.current > 0 && Math.abs(e.currentTarget.currentTime - lastTimeRef.current) > 1) {
+                e.currentTarget.currentTime = lastTimeRef.current
+              }
               if (shouldPlayRef.current && e.currentTarget.paused) {
                 e.currentTarget.play().catch(() => {})
               }
             }}
-            onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+            onTimeUpdate={(e) => {
+              setCurrentTime(e.currentTarget.currentTime)
+              lastTimeRef.current = e.currentTarget.currentTime
+            }}
             onEnded={() => {
               shouldPlayRef.current = false
               setIsPlaying(false)
@@ -271,11 +301,17 @@ export function MediaPlayer({
           }}
           onLoadedMetadata={(e) => {
             setDuration(e.currentTarget.duration || 0)
+            if (lastTimeRef.current > 0 && Math.abs(e.currentTarget.currentTime - lastTimeRef.current) > 1) {
+              e.currentTarget.currentTime = lastTimeRef.current
+            }
             if (shouldPlayRef.current && e.currentTarget.paused) {
               e.currentTarget.play().catch(() => {})
             }
           }}
-          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onTimeUpdate={(e) => {
+            setCurrentTime(e.currentTarget.currentTime)
+            lastTimeRef.current = e.currentTarget.currentTime
+          }}
           onEnded={() => {
             shouldPlayRef.current = false
             setIsPlaying(false)
@@ -308,30 +344,37 @@ export function MediaPlayer({
           </div>
         </div>
 
-        {/* Audio / Video toggle */}
-        <div className="flex items-center self-start sm:self-auto rounded-xl border border-stone-200/90 bg-stone-100/70 p-1 text-xs font-bold dark:border-white/[0.08] dark:bg-[#1C1D18]">
-          <button
-            type="button"
-            onClick={() => setFormat('audio')}
-            className={`focus-ring rounded-lg px-3.5 py-1.5 transition ${
-              format === 'audio'
-                ? 'bg-white font-bold text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
-                : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
-            }`}
-          >
-            Audio
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormat('video')}
-            className={`focus-ring rounded-lg px-3.5 py-1.5 transition ${
-              format === 'video'
-                ? 'bg-white font-bold text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
-                : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
-            }`}
-          >
-            Video
-          </button>
+        {/* Audio / Video toggle & Video Quality Badge */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {format === 'video' && (
+            <span className="hidden sm:inline-block rounded-md bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:bg-amber-400/10 dark:text-amber-400">
+              {videoQuality === 'auto' ? 'Auto Quality' : videoQuality}
+            </span>
+          )}
+          <div className="flex items-center rounded-xl border border-stone-200/90 bg-stone-100/70 p-1 text-xs font-bold dark:border-white/[0.08] dark:bg-[#1C1D18]">
+            <button
+              type="button"
+              onClick={() => setFormat('audio')}
+              className={`focus-ring rounded-lg px-3.5 py-1.5 transition ${
+                format === 'audio'
+                  ? 'bg-white font-bold text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+              }`}
+            >
+              Audio
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormat('video')}
+              className={`focus-ring rounded-lg px-3.5 py-1.5 transition ${
+                format === 'video'
+                  ? 'bg-white font-bold text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
+                  : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+              }`}
+            >
+              Video
+            </button>
+          </div>
         </div>
       </div>
 
@@ -409,6 +452,26 @@ export function MediaPlayer({
           >
             {playbackSpeed}x
           </button>
+
+          {/* Quality Selector (when in video mode) */}
+          {format === 'video' && (
+            <div className="relative inline-flex items-center">
+              <select
+                value={videoQuality}
+                onChange={(e) => handleQualityChange(e.target.value)}
+                className="focus-ring cursor-pointer rounded-lg border border-stone-200/90 dark:border-white/[0.08] bg-white dark:bg-[#1C1D18] px-2 py-1 text-xs font-bold text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/10 transition"
+                title="Streaming video quality"
+                aria-label="Streaming video quality"
+              >
+                <option value="auto">Auto</option>
+                <option value="1080p">1080p</option>
+                <option value="720p">720p</option>
+                <option value="480p">480p</option>
+                <option value="360p">360p</option>
+                <option value="240p">240p</option>
+              </select>
+            </div>
+          )}
 
           {/* Fullscreen (when in video mode) */}
           {format === 'video' && (
