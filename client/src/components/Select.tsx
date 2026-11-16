@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { CheckIcon, ChevronDownIcon } from './icons'
+import { playBack, playEnter, playScroll } from '../lib/sound'
 
 export interface SelectOption {
   value: string
@@ -57,19 +58,23 @@ export function Select({ label, value, options, onChange, disabled }: SelectProp
       case 'Escape':
         event.preventDefault()
         setOpen(false)
+        playBack()
         break
       case 'ArrowDown':
         event.preventDefault()
+        playScroll()
         setHighlightedIndex((prev) => (prev + 1 < options.length ? prev + 1 : 0))
         break
       case 'ArrowUp':
         event.preventDefault()
+        playScroll()
         setHighlightedIndex((prev) => (prev - 1 >= 0 ? prev - 1 : options.length - 1))
         break
       case 'Enter':
       case ' ':
         event.preventDefault()
         if (highlightedIndex >= 0 && highlightedIndex < options.length) {
+          playEnter()
           onChange(options[highlightedIndex].value)
           setOpen(false)
         }
@@ -96,14 +101,20 @@ export function Select({ label, value, options, onChange, disabled }: SelectProp
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          setOpen((prev) => {
+            if (!prev) playEnter()
+            else playBack()
+            return !prev
+          })
+        }}
         onKeyDown={handleKeyDown}
-        className="focus-ring mt-2 flex h-14 w-full items-center justify-between rounded-xl border border-stone-200/90 bg-white px-4 text-left text-sm font-semibold text-stone-900 shadow-2xs transition hover:bg-stone-50/80 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/[0.08] dark:bg-[#181915] dark:text-stone-100 dark:hover:bg-[#1E1F1A]"
+        className="focus-ring mt-2 flex h-12 sm:h-14 w-full items-center justify-between rounded-xl border border-stone-200/90 bg-stone-50/60 px-4 text-left text-sm font-semibold text-stone-900 shadow-xs transition hover:bg-stone-50 focus:bg-white disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/[0.08] dark:bg-[#121310]/70 dark:text-stone-100 dark:hover:bg-[#121310]"
       >
         <span className="truncate">{selectedOption?.label ?? 'Select quality…'}</span>
         <ChevronDownIcon
           className={`h-4 w-4 shrink-0 text-stone-400 transition-transform duration-200 dark:text-stone-500 ${
-            open ? 'rotate-180 text-amber-500 dark:text-amber-400' : ''
+            open ? 'rotate-180 text-banana-amber dark:text-banana-peel' : ''
           }`}
         />
       </button>
@@ -114,7 +125,7 @@ export function Select({ label, value, options, onChange, disabled }: SelectProp
           id={listboxId}
           role="listbox"
           aria-labelledby={triggerId}
-          className="animate-pop-in absolute z-30 mt-2 max-h-64 w-full origin-top overflow-y-auto rounded-xl border border-black/[0.08] bg-white/98 p-1.5 shadow-floating backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#181915]/98 dark:shadow-[0_16px_40px_rgba(0,0,0,0.6)]"
+          className="glass-panel animate-scale-in absolute z-30 mt-2 max-h-64 w-full origin-top overflow-y-auto rounded-xl p-1.5 shadow-floating"
         >
           {options.map((option, index) => {
             const isSelected = option.value === value
@@ -125,16 +136,17 @@ export function Select({ label, value, options, onChange, disabled }: SelectProp
                 <button
                   type="button"
                   onClick={() => {
+                    playEnter()
                     onChange(option.value)
                     setOpen(false)
                   }}
                   onMouseEnter={() => setHighlightedIndex(index)}
-                  className={`flex w-full min-h-[40px] items-center justify-between rounded-lg px-3.5 py-2 text-left text-sm font-semibold transition ${
+                  className={`flex w-full min-h-[44px] items-center justify-between rounded-lg px-3.5 py-2 text-left text-sm font-semibold transition ${
                     isSelected
-                      ? 'bg-amber-500 text-white font-bold shadow-xs dark:bg-amber-400 dark:text-stone-950'
+                      ? 'bg-banana-strong text-white font-bold shadow-xs dark:bg-banana-peel dark:text-stone-950'
                       : isHighlighted
-                        ? 'bg-stone-100 text-stone-900 dark:bg-white/10 dark:text-white'
-                        : 'text-stone-700 hover:bg-stone-50 dark:text-stone-300 dark:hover:bg-white/5'
+                        ? 'bg-stone-100/80 text-stone-900 dark:bg-white/10 dark:text-white'
+                        : 'text-stone-700 hover:bg-stone-100/60 dark:text-stone-300 dark:hover:bg-white/5'
                   }`}
                 >
                   <span className="truncate">{option.label}</span>

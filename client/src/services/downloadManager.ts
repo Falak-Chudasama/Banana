@@ -1,6 +1,7 @@
 import { BACKEND } from '../lib/media'
 import type { JobEvent, JobRecord, JobStatus } from '../lib/jobTypes'
 import { JobEventSubscriber } from './jobEvents'
+import { playBack, playEnter, playFailed, playNotification } from '../lib/sound'
 
 export type DownloadManagerListener = (jobs: JobRecord[]) => void
 
@@ -90,10 +91,19 @@ class DownloadManager {
     const job = this.jobs.get(event.job_id)
     if (!job) return
 
+    const oldStatus = job.status
     job.status = event.status
     job.current_stage = event.stage
     job.current_message = event.message
     job.updated_at = event.timestamp
+
+    if (oldStatus !== event.status) {
+      if (event.status === 'ready' || event.status === 'completed') {
+        playNotification()
+      } else if (event.status === 'failed') {
+        playFailed()
+      }
+    }
 
     if (event.percent !== undefined) {
       job.percent = event.percent
@@ -200,6 +210,7 @@ class DownloadManager {
     this.jobs.set(job.job_id, job)
     this.attachSubscriber(job.job_id)
     this.notify()
+    playEnter()
     return job
   }
 
@@ -239,6 +250,7 @@ class DownloadManager {
     this.jobs.set(job.job_id, job)
     this.attachSubscriber(job.job_id)
     this.notify()
+    playEnter()
     return job
   }
 
@@ -274,6 +286,7 @@ class DownloadManager {
     this.jobs.set(job.job_id, job)
     this.attachSubscriber(job.job_id)
     this.notify()
+    playEnter()
     return job
   }
 
@@ -296,6 +309,7 @@ class DownloadManager {
 
       this.subscribers.get(jobId)?.close()
       this.subscribers.delete(jobId)
+      playBack()
       return true
     } catch (err) {
       console.warn(`Cancel job ${jobId} failed:`, err)
@@ -316,6 +330,7 @@ class DownloadManager {
       this.jobs.set(jobId, updated)
       this.attachSubscriber(jobId)
       this.notify()
+      playEnter()
       return updated
     } catch (err) {
       console.warn(`Retry job ${jobId} failed:`, err)
@@ -329,6 +344,7 @@ class DownloadManager {
     this.subscribers.delete(jobId)
     this.jobs.delete(jobId)
     this.notify()
+    playBack()
   }
 
   // 7. Clear Completed Jobs
@@ -338,6 +354,7 @@ class DownloadManager {
         this.dismissJob(id)
       }
     }
+    playBack()
   }
 
   // 8. Progressive File Transfer to Device
@@ -410,6 +427,7 @@ class DownloadManager {
           job.client_transfer_progress = 100
           job.status = 'completed'
           this.notify()
+          playNotification()
           return true
         } catch (pickerErr: any) {
           if (pickerErr?.name === 'AbortError') {
@@ -470,6 +488,7 @@ class DownloadManager {
         job.client_transfer_progress = 100
         job.status = 'completed'
         this.notify()
+        playNotification()
         return true
       }
 
@@ -487,11 +506,13 @@ class DownloadManager {
       job.client_transfer_status = 'saved'
       job.status = 'completed'
       this.notify()
+      playNotification()
       return true
     } catch (err) {
       console.error('Error saving file:', err)
       job.client_transfer_status = 'failed'
       this.notify()
+      playFailed()
       throw err
     }
   }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { JobRecord } from '../lib/jobTypes'
 import { formatDuration } from '../lib/media'
 import { fetchPlaylistInfo } from '../lib/playlist'
+import { playEnter, playBack, playNotification, playFailed, playScroll } from '../lib/sound'
 import type { PlaylistData, TrackItem } from '../lib/types'
 import { downloadManager } from '../services/downloadManager'
 import {
@@ -40,6 +41,7 @@ export function PlaylistView({
     if (e) e.preventDefault()
     if (!url.trim()) return
 
+    playEnter()
     setIsLoading(true)
     setError('')
     setPlaylist(null)
@@ -49,7 +51,9 @@ export function PlaylistView({
       const data = await fetchPlaylistInfo(url)
       setPlaylist(data)
       setSelectedIds(new Set(data.tracks.map((t) => t.id)))
+      playNotification()
     } catch (err: unknown) {
+      playFailed()
       setError(err instanceof Error ? err.message : 'Could not load playlist.')
     } finally {
       setIsLoading(false)
@@ -58,6 +62,7 @@ export function PlaylistView({
 
   const toggleSelectAll = () => {
     if (!playlist) return
+    playScroll()
     if (selectedIds.size === playlist.tracks.length) {
       setSelectedIds(new Set())
     } else {
@@ -66,6 +71,7 @@ export function PlaylistView({
   }
 
   const toggleTrack = (id: string) => {
+    playScroll()
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
@@ -82,6 +88,7 @@ export function PlaylistView({
     const selectedTracks = playlist.tracks.filter((t) => selectedIds.has(t.id))
     if (selectedTracks.length === 0) return
 
+    playEnter()
     setIsBatchDownloading(true)
     setError('')
 
@@ -110,6 +117,7 @@ export function PlaylistView({
         }
       })
     } catch (err: any) {
+      playFailed()
       setIsBatchDownloading(false)
       setError(err?.message || 'Failed to start batch playlist download.')
     }
@@ -117,6 +125,7 @@ export function PlaylistView({
 
   const handleCancelBatch = async () => {
     if (activeBatchJob) {
+      playBack()
       await downloadManager.cancelJob(activeBatchJob.job_id)
       setIsBatchDownloading(false)
     }
@@ -124,6 +133,7 @@ export function PlaylistView({
 
   const handleAddSelectedToCollection = () => {
     if (!playlist) return
+    playNotification()
     const selectedTracks = playlist.tracks.filter((t) => selectedIds.has(t.id))
     onAddMultipleToCollection(selectedTracks)
   }
@@ -159,7 +169,10 @@ export function PlaylistView({
               {url && (
                 <button
                   type="button"
-                  onClick={() => setUrl('')}
+                  onClick={() => {
+                    playBack()
+                    setUrl('')
+                  }}
                   className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
                   aria-label="Clear URL"
                 >
@@ -171,10 +184,10 @@ export function PlaylistView({
             <button
               type="submit"
               disabled={!url.trim() || isLoading}
-              className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 sm:px-7 text-sm sm:text-base font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300 dark:disabled:bg-stone-800/80 dark:disabled:text-stone-600"
+              className="btn-glass-primary btn-interactive inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-xl px-6 sm:px-7 text-sm sm:text-base font-bold shadow-soft whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
             >
               {isLoading ? (
-                <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
+                <SpinnerIcon className="h-4 w-4 animate-spin text-current" />
               ) : (
                 <LinkIcon className="h-4 w-4" />
               )}
@@ -211,11 +224,11 @@ export function PlaylistView({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
                 onClick={toggleSelectAll}
-                className="focus-ring rounded-xl border border-stone-200/90 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-stone-700 shadow-2xs hover:bg-stone-50 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] transition active:scale-95"
+                className="btn-interactive inline-flex h-11 items-center justify-center rounded-full border border-black/[0.08] bg-white/80 px-4 text-xs sm:text-sm font-semibold text-stone-700 shadow-2xs transition hover:bg-white active:scale-95 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-stone-200 dark:hover:bg-white/[0.08]"
               >
                 {selectedIds.size === playlist.tracks.length ? 'Deselect All' : 'Select All'}
               </button>
@@ -224,24 +237,35 @@ export function PlaylistView({
                 type="button"
                 onClick={handleAddSelectedToCollection}
                 disabled={selectedIds.size === 0}
-                className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-stone-700 shadow-2xs hover:bg-stone-50 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] transition active:scale-95 disabled:opacity-40"
+                className="btn-interactive inline-flex h-11 items-center justify-center gap-1.5 rounded-full border border-black/[0.08] bg-white/80 px-4 text-xs sm:text-sm font-semibold text-stone-700 shadow-2xs transition hover:bg-white active:scale-95 disabled:opacity-40 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-stone-200 dark:hover:bg-white/[0.08]"
               >
-                <CollectionIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                <span>Collect ({selectedIds.size})</span>
+                <CollectionIcon className="h-4 w-4 text-banana-strong dark:text-banana-peel" />
+                <span>Collect All</span>
+                {selectedIds.size > 0 && (
+                  <span className="flex h-5 min-w-[18px] items-center justify-center rounded-full bg-banana-amber/15 dark:bg-banana-peel/20 px-1 text-micro font-bold text-banana-strong dark:text-banana-peel">
+                    {selectedIds.size}
+                  </span>
+                )}
               </button>
 
               <button
                 type="button"
                 onClick={handleBatchDownload}
                 disabled={selectedIds.size === 0 || isBatchDownloading}
-                className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-soft hover:bg-amber-600 transition active:scale-95 disabled:opacity-40 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
+                className="btn-glass-primary btn-interactive inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-xs sm:text-sm font-bold shadow-soft transition disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                title="Start downloading all selected tracks"
               >
                 {isBatchDownloading ? (
-                  <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
+                  <SpinnerIcon className="h-4 w-4 animate-spin text-current" />
                 ) : (
                   <DownloadIcon className="h-4 w-4" />
                 )}
-                <span>Download ({selectedIds.size})</span>
+                <span>Start All</span>
+                {selectedIds.size > 0 && (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-black/15 dark:bg-black/25 px-1.5 text-micro font-bold">
+                    {selectedIds.size}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -276,7 +300,7 @@ export function PlaylistView({
                   style={{ width: `${activeBatchJob.percent || 0}%` }}
                 />
               </div>
-              <div className="mt-1.5 flex justify-between text-[11px] text-stone-500 dark:text-stone-400">
+              <div className="mt-1.5 flex justify-between text-micro text-stone-500 dark:text-stone-400">
                 <span>
                   {activeBatchJob.playlist_completed_tracks || 0} completed &middot; {activeBatchJob.playlist_failed_tracks || 0} failed
                 </span>
@@ -292,9 +316,9 @@ export function PlaylistView({
               return (
                 <div
                   key={track.id}
-                  className="flex items-center justify-between gap-3 py-3 px-2 rounded-xl transition hover:bg-stone-50 dark:hover:bg-white/[0.03]"
+                  className="flex items-center justify-between gap-3 py-3 px-2 rounded-xl transition-all duration-150 hover:bg-stone-100/70 hover:translate-x-0.5 dark:hover:bg-white/[0.05]"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -319,7 +343,7 @@ export function PlaylistView({
                       className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-lg object-cover shadow-2xs"
                       loading="lazy"
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-stone-900 dark:text-stone-100">{track.title}</p>
                       <p className="truncate text-xs font-medium text-stone-500 dark:text-stone-400">
                         {track.artist} {track.duration ? `· ${formatDuration(track.duration)}` : ''}
@@ -330,7 +354,10 @@ export function PlaylistView({
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       type="button"
-                      onClick={() => onPlayTrack(track)}
+                      onClick={() => {
+                        playEnter()
+                        onPlayTrack(track)
+                      }}
                       className="focus-ring rounded-full p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition active:scale-95"
                       title="Play track"
                       aria-label="Play track"
@@ -339,7 +366,10 @@ export function PlaylistView({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDownloadTrack(track)}
+                      onClick={() => {
+                        playEnter()
+                        onDownloadTrack(track)
+                      }}
                       className="focus-ring rounded-lg p-2 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/10 transition active:scale-95"
                       title="Download track"
                       aria-label="Download track"

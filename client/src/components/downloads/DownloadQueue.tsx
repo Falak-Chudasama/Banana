@@ -2,6 +2,7 @@ import React from 'react'
 import type { JobRecord } from '../../lib/jobTypes'
 import { DownloadItem } from './DownloadItem'
 import { CloseIcon, DownloadIcon, TrashIcon } from '../icons'
+import { playBack } from '../../lib/sound'
 
 interface DownloadQueueProps {
   jobs: JobRecord[]
@@ -37,16 +38,19 @@ export function DownloadQueue({
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
+        className="fixed inset-0 bg-black/45 backdrop-blur-sm transition-opacity animate-fade-in"
+        onClick={() => {
+          playBack()
+          onClose()
+        }}
       />
 
       <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
-        <div className="w-screen max-w-md transform border-l border-black/[0.08] bg-[#F8F9F5] shadow-2xl transition-all dark:border-white/[0.08] dark:bg-[#121310] flex flex-col">
+        <div className="glass-panel animate-slide-from-right w-screen max-w-md sm:max-w-lg transform border-l border-black/[0.08] shadow-floating transition-all dark:border-white/[0.08] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-black/[0.06] px-5 py-4 dark:border-white/[0.08]">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-banana-amber/15 text-banana-strong dark:bg-banana-peel/20 dark:text-banana-peel">
                 <DownloadIcon className="h-4 w-4" />
               </div>
               <div>
@@ -65,8 +69,11 @@ export function DownloadQueue({
               {jobs.some((j) => j.status === 'completed' || j.status === 'cancelled') && (
                 <button
                   type="button"
-                  onClick={onClearCompleted}
-                  className="rounded-lg p-1.5 text-xs font-medium text-stone-500 hover:bg-stone-200/60 dark:text-stone-400 dark:hover:bg-stone-800 transition"
+                  onClick={() => {
+                    playBack()
+                    onClearCompleted()
+                  }}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-200/60 dark:text-stone-300 dark:hover:bg-white/10 transition min-h-[44px] flex items-center"
                   title="Clear completed downloads"
                 >
                   Clear Completed
@@ -74,8 +81,11 @@ export function DownloadQueue({
               )}
               <button
                 type="button"
-                onClick={onClose}
-                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-200/60 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-200 transition"
+                onClick={() => {
+                  playBack()
+                  onClose()
+                }}
+                className="focus-ring rounded-lg p-2 text-stone-400 hover:bg-stone-200/60 hover:text-stone-700 dark:hover:bg-white/10 dark:hover:text-stone-200 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Close drawer"
               >
                 <CloseIcon className="h-4 w-4" />

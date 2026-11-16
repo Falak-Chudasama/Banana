@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { buildStreamPreviewUrl, formatDuration } from '../lib/media'
+import { playBack, playEnter, playNotification, playScroll } from '../lib/sound'
 import {
   CollectionIcon,
   DownloadIcon,
@@ -143,6 +144,7 @@ export function MediaPlayer({
     const el = mediaRef.current
     if (!el) return
 
+    playEnter()
     if (isPlaying) {
       shouldPlayRef.current = false
       el.pause()
@@ -203,12 +205,12 @@ export function MediaPlayer({
   }
 
   return (
-    <div className="rounded-2xl border border-black/[0.06] bg-white p-5 sm:p-6 shadow-soft dark:border-white/[0.08] dark:bg-[#181915] transition-all">
+    <div className="glass-card rounded-2xl p-5 sm:p-6 shadow-soft hover:shadow-lift transition-all">
       {/* Video display (when in video mode) */}
       {format === 'video' && (
         <div
           ref={videoContainerRef}
-          className="group/video relative mb-5 aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xs"
+          className="group/video relative mb-5 aspect-video w-full overflow-hidden rounded-xl bg-black shadow-xs"
         >
           <video
             ref={(ref) => {
@@ -265,7 +267,7 @@ export function MediaPlayer({
           <button
             type="button"
             onClick={toggleFullscreen}
-            className="focus-ring absolute bottom-3 right-3 rounded-lg bg-black/60 p-2 text-white/90 backdrop-blur-md transition hover:bg-black/90 hover:text-white"
+            className="focus-ring absolute bottom-3 right-3 rounded-lg bg-black/60 p-2 text-white/90 backdrop-blur-md transition hover:bg-black/90 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
             title={isFullscreen ? 'Exit Fullscreen' : 'Watch Fullscreen'}
             aria-label={isFullscreen ? 'Exit Fullscreen' : 'Watch Fullscreen'}
           >
@@ -330,12 +332,12 @@ export function MediaPlayer({
                 e.currentTarget.style.display = 'none'
               }}
               alt={title}
-              className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-xl object-cover shadow-2xs"
+              className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-xl object-cover shadow-xs"
               loading="lazy"
             />
           )}
           <div className="min-w-0">
-            <h3 className="truncate font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-stone-50">
+            <h3 className="truncate font-sans text-base sm:text-title font-bold text-stone-900 dark:text-stone-50">
               {title || 'Media Track'}
             </h3>
             {artist && (
@@ -347,14 +349,17 @@ export function MediaPlayer({
         {/* Audio / Video toggle & Video Quality Badge */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {format === 'video' && (
-            <span className="hidden sm:inline-block rounded-md bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:bg-amber-400/10 dark:text-amber-400">
+            <span className="hidden sm:inline-block rounded-full bg-banana-amber/15 px-2.5 py-1 text-xs font-bold text-banana-strong dark:bg-banana-peel/20 dark:text-banana-peel">
               {videoQuality === 'auto' ? 'Auto Quality' : videoQuality}
             </span>
           )}
           <div className="flex items-center rounded-xl border border-stone-200/90 bg-stone-100/70 p-1 text-xs font-bold dark:border-white/[0.08] dark:bg-[#1C1D18]">
             <button
               type="button"
-              onClick={() => setFormat('audio')}
+              onClick={() => {
+                playScroll()
+                setFormat('audio')
+              }}
               className={`focus-ring rounded-lg px-3.5 py-1.5 transition ${
                 format === 'audio'
                   ? 'bg-white font-bold text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
@@ -365,7 +370,10 @@ export function MediaPlayer({
             </button>
             <button
               type="button"
-              onClick={() => setFormat('video')}
+              onClick={() => {
+                playScroll()
+                setFormat('video')
+              }}
               className={`focus-ring rounded-lg px-3.5 py-1.5 transition ${
                 format === 'video'
                   ? 'bg-white font-bold text-stone-900 shadow-xs dark:bg-stone-800 dark:text-stone-50'
@@ -388,7 +396,7 @@ export function MediaPlayer({
             step={0.1}
             value={currentTime}
             onChange={(e) => handleSeek(parseFloat(e.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-amber-500 dark:accent-amber-400 focus:outline-none"
+            className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-banana-strong dark:accent-banana-peel focus:outline-none"
             aria-label="Seek media position"
           />
         </div>
@@ -406,7 +414,7 @@ export function MediaPlayer({
             type="button"
             onClick={togglePlay}
             aria-label={isPlaying ? 'Pause' : 'Play'}
-            className="focus-ring flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-amber-500 text-white shadow-soft transition hover:scale-105 hover:bg-amber-600 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
+            className="btn-interactive focus-ring flex h-12 w-12 min-h-[48px] min-w-[48px] items-center justify-center rounded-full bg-banana-strong text-white shadow-soft transition hover:bg-[#B45309] active:scale-95 dark:bg-banana-peel dark:text-stone-950 dark:hover:bg-[#FBBF24]"
           >
             {isLoading ? (
               <SpinnerIcon className="h-5 w-5 animate-spin text-white dark:text-stone-950" />
@@ -422,7 +430,7 @@ export function MediaPlayer({
             <button
               type="button"
               onClick={toggleMute}
-              className="focus-ring rounded-lg p-1.5 text-stone-500 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-white/10 dark:hover:text-stone-200 transition"
+              className="focus-ring rounded-lg p-2 text-stone-500 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-white/10 dark:hover:text-stone-200 transition min-h-[40px] min-w-[40px] flex items-center justify-center"
               aria-label={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted || volume === 0 ? (
@@ -438,7 +446,7 @@ export function MediaPlayer({
               step={0.05}
               value={isMuted ? 0 : volume}
               onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-              className="h-1.5 w-16 cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-amber-500 dark:accent-amber-400 sm:w-24"
+              className="h-1.5 w-16 cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-banana-strong dark:accent-banana-peel sm:w-24"
               aria-label="Volume"
             />
           </div>
@@ -447,7 +455,7 @@ export function MediaPlayer({
           <button
             type="button"
             onClick={cycleSpeed}
-            className="focus-ring rounded-lg border border-stone-200/90 dark:border-white/[0.08] px-2.5 py-1 text-xs font-bold text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-white/10 transition"
+            className="focus-ring rounded-lg border border-stone-200/90 dark:border-white/[0.08] px-2.5 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-white/10 transition min-h-[36px]"
             title="Playback speed"
           >
             {playbackSpeed}x
@@ -459,7 +467,7 @@ export function MediaPlayer({
               <select
                 value={videoQuality}
                 onChange={(e) => handleQualityChange(e.target.value)}
-                className="focus-ring cursor-pointer rounded-lg border border-stone-200/90 dark:border-white/[0.08] bg-white dark:bg-[#1C1D18] px-2 py-1 text-xs font-bold text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/10 transition"
+                className="focus-ring cursor-pointer rounded-lg border border-stone-200/90 dark:border-white/[0.08] bg-white dark:bg-[#1C1D18] px-2.5 py-1.5 text-xs font-bold text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/10 transition min-h-[36px]"
                 title="Streaming video quality"
                 aria-label="Streaming video quality"
               >
@@ -478,7 +486,7 @@ export function MediaPlayer({
             <button
               type="button"
               onClick={toggleFullscreen}
-              className="focus-ring inline-flex items-center gap-1 rounded-lg border border-stone-200/90 dark:border-white/[0.08] px-2.5 py-1 text-xs font-bold text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-white/10 transition"
+              className="focus-ring inline-flex items-center gap-1 rounded-lg border border-stone-200/90 dark:border-white/[0.08] px-2.5 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-white/10 transition min-h-[36px]"
               title={isFullscreen ? 'Exit Fullscreen' : 'Watch Fullscreen'}
               aria-label={isFullscreen ? 'Exit Fullscreen' : 'Watch Fullscreen'}
             >
@@ -493,11 +501,14 @@ export function MediaPlayer({
           {onTrimRequested && (
             <button
               type="button"
-              onClick={onTrimRequested}
-              className={`focus-ring inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs sm:text-sm font-bold shadow-2xs transition active:scale-95 ${
+              onClick={() => {
+                playEnter()
+                onTrimRequested()
+              }}
+              className={`btn-interactive focus-ring inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs sm:text-sm font-bold shadow-xs transition active:scale-95 min-h-[40px] ${
                 isTrimOpen
-                  ? 'border-amber-500 bg-amber-500 text-white dark:border-amber-400 dark:bg-amber-400 dark:text-stone-950'
-                  : 'border-stone-200/90 bg-white text-stone-700 hover:bg-stone-50 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C]'
+                  ? 'border border-banana-strong bg-banana-strong text-white dark:border-banana-peel dark:bg-banana-peel dark:text-stone-950'
+                  : 'border border-stone-200/90 bg-white text-stone-700 hover:bg-stone-50 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C]'
               }`}
             >
               <ScissorsIcon className="h-4 w-4" />
@@ -508,11 +519,14 @@ export function MediaPlayer({
           {onAddToCollection && (
             <button
               type="button"
-              onClick={onAddToCollection}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-stone-700 shadow-2xs transition hover:bg-stone-50 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C]"
+              onClick={() => {
+                playNotification()
+                onAddToCollection()
+              }}
+              className="btn-interactive focus-ring inline-flex items-center gap-1.5 rounded-full border border-stone-200/90 bg-white px-4 py-2 text-xs sm:text-sm font-bold text-stone-700 shadow-xs transition hover:bg-stone-50 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] min-h-[40px]"
               title="Add to session collection"
             >
-              <CollectionIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              <CollectionIcon className="h-4 w-4 text-banana-amber dark:text-banana-peel" />
               <span className="hidden sm:inline">Collect</span>
             </button>
           )}
@@ -520,8 +534,11 @@ export function MediaPlayer({
           {onDownloadRequested && (
             <button
               type="button"
-              onClick={onDownloadRequested}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
+              onClick={() => {
+                playEnter()
+                onDownloadRequested()
+              }}
+              className="btn-glass-primary btn-interactive focus-ring inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-xs sm:text-sm font-bold shadow-soft transition active:scale-95 min-h-[40px]"
             >
               <DownloadIcon className="h-4 w-4" />
               <span>Download</span>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fetchDiscoverRecommendations, resolveDiscoverSeed } from '../lib/discover'
 import { formatDuration } from '../lib/media'
 import type { DiscoverCategory, DiscoverPreferences, TrackItem } from '../lib/types'
+import { playBack, playEnter, playFailed, playNotification, playScroll } from '../lib/sound'
 import {
   AlertIcon,
   CloseIcon,
@@ -55,6 +56,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
     if (e) e.preventDefault()
     if (!query.trim()) return
 
+    playEnter()
     setIsResolving(true)
     setError('')
     setSeed(null)
@@ -63,8 +65,10 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
     try {
       const seedTrack = await resolveDiscoverSeed(query)
       setSeed(seedTrack)
+      playNotification()
       loadRecommendations(seedTrack, category, prefs)
     } catch (err: unknown) {
+      playFailed()
       setError(err instanceof Error ? err.message : 'Could not find seed track.')
     } finally {
       setIsResolving(false)
@@ -88,6 +92,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
       )
       setRecommendations(recs)
     } catch (err: unknown) {
+      playFailed()
       setError(err instanceof Error ? err.message : 'Failed to generate recommendations.')
     } finally {
       setIsLoadingRecs(false)
@@ -95,6 +100,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
   }
 
   const handleCategoryChange = (newCat: DiscoverCategory) => {
+    playScroll()
     setCategory(newCat)
     if (seed) {
       loadRecommendations(seed, newCat, prefs)
@@ -102,6 +108,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
   }
 
   const handlePrefChange = (key: keyof DiscoverPreferences, value: any) => {
+    playScroll()
     const updated = { ...prefs, [key]: value }
     setPrefs(updated)
     if (seed) {
@@ -111,13 +118,16 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
 
   const handleFeedback = (trackId: string, type: 'like' | 'dislike' | 'known') => {
     if (type === 'like') {
+      playEnter()
       setLikedIds((prev) => (prev.includes(trackId) ? prev.filter((id) => id !== trackId) : [...prev, trackId]))
       setDislikedIds((prev) => prev.filter((id) => id !== trackId))
     } else if (type === 'dislike') {
+      playBack()
       setDislikedIds((prev) => (prev.includes(trackId) ? prev.filter((id) => id !== trackId) : [...prev, trackId]))
       setLikedIds((prev) => prev.filter((id) => id !== trackId))
       // Preserved in list: do not remove the track from recommendations
     } else if (type === 'known') {
+      playBack()
       setKnownIds((prev) => [...prev, trackId])
       setRecommendations((prev) => prev.filter((t) => t.id !== trackId))
     }
@@ -128,7 +138,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
       {/* Search Input Area */}
       <section
         aria-label="Discover Seed Form"
-        className="rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 shadow-soft dark:border-white/[0.08] dark:bg-[#181915]"
+        className="glass-card rounded-2xl p-6 sm:p-8 shadow-soft hover:shadow-lift hover:border-stone-300 dark:hover:border-stone-700"
       >
         <form onSubmit={handleSearch}>
           <div className="flex items-center justify-between pb-2">
@@ -140,8 +150,11 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
             </label>
             <button
               type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className="focus-ring rounded-lg px-2.5 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition"
+              onClick={() => {
+                playEnter()
+                setShowFilters(!showFilters)
+              }}
+              className="focus-ring rounded-lg px-2.5 py-1 text-xs font-bold text-banana-strong dark:text-banana-peel hover:bg-banana-amber/10 dark:hover:bg-banana-peel/10 transition"
             >
               {showFilters ? 'Hide Preferences' : 'Tune Preferences'}
             </button>
@@ -156,13 +169,16 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="e.g. Arctic Monkeys Knee Socks or YouTube link..."
-                className="focus-ring h-12 sm:h-13 w-full rounded-xl border border-stone-200/90 bg-stone-50/60 pl-11 pr-10 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 shadow-2xs transition hover:bg-stone-50 focus:bg-white dark:border-white/[0.08] dark:bg-[#121310]/70 dark:text-stone-100 dark:placeholder:text-stone-500 dark:hover:bg-[#121310] dark:focus:bg-[#121310]"
+                className="focus-ring h-12 sm:h-13 w-full rounded-xl border border-stone-200/90 bg-stone-50/60 pl-11 pr-10 text-sm sm:text-base text-stone-900 placeholder:text-stone-400 shadow-xs transition hover:bg-stone-50 focus:bg-white dark:border-white/[0.08] dark:bg-[#121310]/70 dark:text-stone-100 dark:placeholder:text-stone-500 dark:hover:bg-[#121310] dark:focus:bg-[#121310]"
               />
               {query && (
                 <button
                   type="button"
-                  onClick={() => setQuery('')}
-                  className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
+                  onClick={() => {
+                    playBack()
+                    setQuery('')
+                  }}
+                  className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 min-h-[36px] min-w-[36px] flex items-center justify-center"
                   aria-label="Clear query"
                 >
                   <CloseIcon className="h-4 w-4" />
@@ -173,7 +189,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
             <button
               type="submit"
               disabled={!query.trim() || isResolving}
-              className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 sm:px-7 text-sm sm:text-base font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300 dark:disabled:bg-stone-800/80 dark:disabled:text-stone-600"
+              className="btn-glass-primary btn-interactive focus-ring inline-flex h-12 sm:h-13 min-h-[48px] items-center justify-center gap-2 rounded-full px-6 sm:px-7 text-sm font-bold shadow-soft transition disabled:cursor-not-allowed disabled:opacity-45"
             >
               {isResolving ? (
                 <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
@@ -253,7 +269,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                 className="h-12 w-12 shrink-0 rounded-lg object-cover shadow-2xs"
               />
               <div className="min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                <span className="text-micro font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
                   Seed Track
                 </span>
                 <p className="truncate text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">{seed.title}</p>
@@ -305,9 +321,9 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
               key={cat.id}
               type="button"
               onClick={() => handleCategoryChange(cat.id)}
-              className={`focus-ring rounded-full px-4 py-2 text-xs sm:text-sm font-semibold transition active:scale-95 ${
+              className={`btn-interactive focus-ring rounded-full px-4 py-2 text-xs sm:text-sm font-semibold transition active:scale-95 min-h-[40px] ${
                 category === cat.id
-                  ? 'bg-amber-500 text-white font-bold shadow-soft dark:bg-amber-400 dark:text-stone-950'
+                  ? 'bg-banana-strong text-white font-bold shadow-soft dark:bg-banana-peel dark:text-stone-950'
                   : 'border border-stone-200/90 bg-white text-stone-600 hover:bg-stone-50 dark:border-white/[0.08] dark:bg-[#181915] dark:text-stone-300 dark:hover:bg-[#1E1F1A]'
               }`}
             >
@@ -321,13 +337,13 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
       {seed && (
         <section
           aria-label="Recommendations"
-          className="rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 shadow-soft dark:border-white/[0.08] dark:bg-[#181915]"
+          className="glass-card rounded-2xl p-6 sm:p-8 shadow-soft hover:shadow-lift hover:border-stone-300 dark:hover:border-stone-700"
         >
           <div className="flex items-center justify-between pb-4 border-b border-stone-200/80 dark:border-white/[0.08]">
-            <h3 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-stone-50">
+            <h3 className="font-sans text-base sm:text-title font-bold text-stone-900 dark:text-stone-50">
               {CATEGORIES.find((c) => c.id === category)?.label}
             </h3>
-            {isLoadingRecs && <SpinnerIcon className="h-4 w-4 animate-spin text-amber-500 dark:text-amber-400" />}
+            {isLoadingRecs && <SpinnerIcon className="h-4 w-4 animate-spin text-banana-strong dark:text-banana-peel" />}
           </div>
 
           <div className="mt-3 divide-y divide-stone-100 dark:divide-white/[0.04]">
@@ -339,7 +355,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
               recommendations.map((track) => (
                 <div
                   key={track.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-2 rounded-xl transition hover:bg-stone-50 dark:hover:bg-white/[0.03]"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-2 rounded-xl transition-all duration-150 hover:bg-stone-100/70 hover:translate-x-0.5 dark:hover:bg-white/[0.05]"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <img
@@ -353,7 +369,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                         e.currentTarget.src = `https://i.ytimg.com/vi/${track.id}/hqdefault.jpg`
                       }}
                       alt={track.title}
-                      className="h-12 w-12 shrink-0 rounded-lg object-cover shadow-2xs"
+                      className="h-12 w-12 shrink-0 rounded-lg object-cover shadow-xs"
                       loading="lazy"
                     />
                     <div className="min-w-0 flex-1">
@@ -364,11 +380,11 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         {typeof track.match_score === 'number' && (
                           <span
-                            className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
+                            className={`inline-flex items-center gap-1 text-micro font-mono font-bold px-2 py-0.5 rounded-full border shadow-xs ${
                               track.match_score >= 95
-                                ? 'bg-amber-400/20 text-amber-900 border-amber-400/50 dark:bg-amber-400/25 dark:text-amber-300 dark:border-amber-400/40'
+                                ? 'bg-banana-amber/20 text-banana-strong border-banana-amber/50 dark:bg-banana-peel/25 dark:text-banana-peel dark:border-banana-peel/40'
                                 : track.match_score >= 85
-                                ? 'bg-amber-100/90 text-amber-800 border-amber-300/50 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25'
+                                ? 'bg-banana-amber/10 text-banana-strong border-banana-amber/30 dark:bg-banana-peel/15 dark:text-banana-peel dark:border-banana-peel/25'
                                 : 'bg-stone-100 text-stone-700 border-stone-200 dark:bg-white/[0.06] dark:text-stone-300 dark:border-white/[0.08]'
                             }`}
                             title={`${track.match_score}% algorithmic similarity match`}
@@ -377,9 +393,9 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                               aria-hidden="true"
                               className={`inline-block h-1.5 w-1.5 rounded-full ${
                                 track.match_score >= 95
-                                  ? 'bg-amber-500 dark:bg-amber-400 animate-pulse'
+                                  ? 'bg-banana-strong dark:bg-banana-peel animate-pulse'
                                   : track.match_score >= 85
-                                  ? 'bg-amber-500 dark:bg-amber-400'
+                                  ? 'bg-banana-strong dark:bg-banana-peel'
                                   : 'bg-stone-400 dark:bg-stone-500'
                               }`}
                             />
@@ -387,7 +403,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                           </span>
                         )}
                         {track.reason && (
-                          <span className="inline-block text-[11px] font-semibold text-amber-900/80 bg-amber-100/60 dark:bg-white/[0.06] dark:text-stone-300 rounded-md px-2 py-0.5 border border-amber-200/50 dark:border-white/[0.06]">
+                          <span className="inline-block text-micro font-semibold text-stone-700 bg-stone-100/90 dark:bg-white/[0.08] dark:text-stone-300 rounded-lg px-2 py-0.5 border border-stone-200/50 dark:border-white/[0.06]">
                             {track.reason}
                           </span>
                         )}
@@ -398,8 +414,11 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                   <div className="flex flex-wrap sm:flex-nowrap items-center justify-between sm:justify-end gap-1.5 shrink-0 pt-1 sm:pt-0">
                     <button
                       type="button"
-                      onClick={() => onPlayTrack(track)}
-                      className="focus-ring flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-400 dark:hover:text-stone-950 transition active:scale-95"
+                      onClick={() => {
+                        playEnter()
+                        onPlayTrack(track)
+                      }}
+                      className="focus-ring flex h-10 w-10 items-center justify-center rounded-full bg-banana-amber/15 text-banana-strong dark:bg-banana-peel/20 dark:text-banana-peel hover:bg-banana-strong hover:text-white dark:hover:bg-banana-peel dark:hover:text-stone-950 transition active:scale-95 min-h-[40px] min-w-[40px]"
                       title="Play track"
                       aria-label="Play track"
                     >
@@ -407,8 +426,11 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDownloadTrack(track)}
-                      className="focus-ring flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200/90 bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-900 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white shadow-2xs transition active:scale-95"
+                      onClick={() => {
+                        playEnter()
+                        onDownloadTrack(track)
+                      }}
+                      className="focus-ring flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200/90 bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-900 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white shadow-xs transition active:scale-95 min-h-[40px] min-w-[40px]"
                       title="Download track"
                       aria-label="Download track"
                     >
@@ -416,8 +438,11 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                     </button>
                     <button
                       type="button"
-                      onClick={() => onAddToCollection(track)}
-                      className="focus-ring flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200/90 bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-900 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white shadow-2xs transition active:scale-95"
+                      onClick={() => {
+                        playNotification()
+                        onAddToCollection(track)
+                      }}
+                      className="focus-ring flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200/90 bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-900 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white shadow-xs transition active:scale-95 min-h-[40px] min-w-[40px]"
                       title="Add to session collection"
                       aria-label="Add to collection"
                     >
@@ -429,7 +454,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                       <button
                         type="button"
                         onClick={() => handleFeedback(track.id, 'like')}
-                        className={`focus-ring flex h-8 w-8 items-center justify-center rounded-lg transition active:scale-90 ${
+                        className={`focus-ring flex h-9 w-9 items-center justify-center rounded-lg transition active:scale-90 ${
                           likedIds.includes(track.id)
                             ? 'bg-emerald-500 text-white shadow-xs'
                             : 'text-stone-500 hover:text-emerald-600 hover:bg-emerald-50 dark:text-stone-400 dark:hover:text-emerald-300 dark:hover:bg-emerald-950/40'
@@ -442,7 +467,7 @@ export function DiscoverView({ onPlayTrack, onDownloadTrack, onAddToCollection }
                       <button
                         type="button"
                         onClick={() => handleFeedback(track.id, 'dislike')}
-                        className={`focus-ring flex h-8 w-8 items-center justify-center rounded-lg transition active:scale-90 ${
+                        className={`focus-ring flex h-9 w-9 items-center justify-center rounded-lg transition active:scale-90 ${
                           dislikedIds.includes(track.id)
                             ? 'bg-rose-500 text-white shadow-xs'
                             : 'text-stone-500 hover:text-rose-600 hover:bg-rose-50 dark:text-stone-400 dark:hover:text-rose-300 dark:hover:bg-rose-950/40'

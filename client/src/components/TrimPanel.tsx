@@ -6,6 +6,7 @@ import {
 } from '../lib/media'
 import type { MediaFormat } from '../lib/types'
 import { downloadManager } from '../services/downloadManager'
+import { playBack, playEnter, playFailed, playNotification } from '../lib/sound'
 import {
   AlertIcon,
   CheckCircleIcon,
@@ -90,10 +91,12 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
 
   const handleProcessTrim = async () => {
     if (startTime < 0 || endTime <= startTime) {
+      playFailed()
       setError('Start time must be before end time.')
       return
     }
 
+    playEnter()
     setIsProcessing(true)
     setError('')
     setTrimJob(null)
@@ -114,8 +117,10 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
           setTrimJob(current)
           if (current.status === 'ready' || current.status === 'completed') {
             setIsProcessing(false)
+            playNotification()
           } else if (current.status === 'failed') {
             setIsProcessing(false)
+            playFailed()
             setError(current.user_facing_error || 'Trimming operation failed.')
             unsub()
           } else if (current.status === 'cancelled') {
@@ -126,16 +131,20 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
       })
     } catch (err: unknown) {
       setIsProcessing(false)
+      playFailed()
       setError(err instanceof Error ? err.message : 'Trimming failed. Please check inputs.')
     }
   }
 
   const handleSaveTrimmedFile = async () => {
     if (!trimJob) return
+    playEnter()
     setIsSaving(true)
     try {
       await downloadManager.saveFileToDevice(trimJob.job_id)
+      playNotification()
     } catch (err: any) {
+      playFailed()
       setError(err?.message || 'Failed to save file to device.')
     } finally {
       setIsSaving(false)
@@ -143,21 +152,24 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
   }
 
   return (
-    <div className="animate-fade-in mt-6 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-soft dark:border-white/[0.08] dark:bg-[#181915]">
+    <div className="glass-card animate-scale-in mt-6 rounded-2xl p-6 shadow-soft hover:shadow-lift hover:border-stone-300 dark:hover:border-stone-700">
       <div className="flex items-center justify-between pb-4 border-b border-stone-200/80 dark:border-white/[0.08]">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-banana-amber/15 text-banana-strong dark:bg-banana-peel/20 dark:text-banana-peel">
             <ScissorsIcon className="h-5 w-5" />
           </div>
           <div>
             <h4 className="font-sans text-base font-bold text-stone-900 dark:text-stone-50">Trim Media Clip</h4>
-            <p className="text-xs text-stone-500 dark:text-stone-400">Export a custom excerpt from this track</p>
+            <p className="text-xs text-stone-500 dark:text-stone-400">Export a precision segment or ringtone with zero storage</p>
           </div>
         </div>
         <button
           type="button"
-          onClick={onClose}
-          className="focus-ring rounded-xl p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-500 dark:hover:bg-white/10 dark:hover:text-stone-200 transition"
+          onClick={() => {
+            playBack()
+            onClose()
+          }}
+          className="focus-ring rounded-xl p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 dark:text-stone-500 dark:hover:bg-white/10 dark:hover:text-stone-200 transition min-h-[44px] min-w-[44px] flex items-center justify-center"
           aria-label="Close trim panel"
         >
           <CloseIcon className="h-5 w-5" />
@@ -176,7 +188,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
             <div>
               <div className="flex justify-between text-xs font-semibold text-stone-600 dark:text-stone-400 mb-1">
                 <span>Start Marker</span>
-                <span className="font-mono text-amber-600 dark:text-amber-400">{toTimeString(startTime)}</span>
+                <span className="font-mono text-banana-strong dark:text-banana-peel font-bold">{toTimeString(startTime)}</span>
               </div>
               <input
                 type="range"
@@ -185,7 +197,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
                 step={1}
                 value={startTime}
                 onChange={(e) => handleSliderStart(parseFloat(e.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-amber-500 dark:accent-amber-400"
+                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-banana-strong dark:accent-banana-peel"
                 aria-label="Start Marker"
               />
             </div>
@@ -193,7 +205,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
             <div>
               <div className="flex justify-between text-xs font-semibold text-stone-600 dark:text-stone-400 mb-1">
                 <span>End Marker</span>
-                <span className="font-mono text-amber-600 dark:text-amber-400">{toTimeString(endTime)}</span>
+                <span className="font-mono text-banana-strong dark:text-banana-peel font-bold">{toTimeString(endTime)}</span>
               </div>
               <input
                 type="range"
@@ -202,7 +214,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
                 step={1}
                 value={endTime}
                 onChange={(e) => handleSliderEnd(parseFloat(e.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-amber-500 dark:accent-amber-400"
+                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-stone-200 dark:bg-stone-700 accent-banana-strong dark:accent-banana-peel"
                 aria-label="End Marker"
               />
             </div>
@@ -220,7 +232,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
               value={startInput}
               onChange={(e) => handleStartInputChange(e.target.value)}
               placeholder="00:00"
-              className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200/90 bg-white px-3.5 font-mono text-sm text-stone-900 shadow-2xs dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-100"
+              className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200/90 bg-stone-50/60 px-3.5 font-mono text-sm text-stone-900 shadow-xs dark:border-white/[0.08] dark:bg-[#121310]/70 dark:text-stone-100"
             />
           </div>
 
@@ -233,7 +245,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
               value={endInput}
               onChange={(e) => handleEndInputChange(e.target.value)}
               placeholder="01:00"
-              className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200/90 bg-white px-3.5 font-mono text-sm text-stone-900 shadow-2xs dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-100"
+              className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200/90 bg-stone-50/60 px-3.5 font-mono text-sm text-stone-900 shadow-xs dark:border-white/[0.08] dark:bg-[#121310]/70 dark:text-stone-100"
             />
           </div>
 
@@ -279,7 +291,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
           type="button"
           onClick={handleProcessTrim}
           disabled={isProcessing || selectedDuration <= 0}
-          className="focus-ring inline-flex h-11 sm:h-12 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 text-sm font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
+          className="btn-glass-primary btn-interactive focus-ring inline-flex h-12 min-h-[48px] items-center justify-center gap-2 rounded-full px-6 text-sm font-bold shadow-soft transition disabled:cursor-not-allowed disabled:opacity-45"
         >
           {isProcessing ? (
             <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
@@ -292,7 +304,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
 
       {/* Success banner */}
       {trimJob && trimJob.status === 'ready' && (
-        <div className="animate-fade-in mt-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/90 dark:border-emerald-800/40 dark:bg-emerald-950/40 p-3.5 text-sm text-emerald-900 dark:text-emerald-200 shadow-2xs">
+        <div className="animate-fade-in mt-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/90 dark:border-emerald-800/40 dark:bg-emerald-950/40 p-3.5 text-sm text-emerald-900 dark:text-emerald-200 shadow-xs">
           <div className="flex items-center gap-2.5 min-w-0">
             <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <div className="min-w-0">
@@ -306,7 +318,7 @@ export function TrimPanel({ url, duration, onClose }: TrimPanelProps) {
             type="button"
             onClick={handleSaveTrimmedFile}
             disabled={isSaving}
-            className="focus-ring shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition active:scale-95 disabled:opacity-50"
+            className="btn-interactive focus-ring shrink-0 inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-800 transition active:scale-95 disabled:opacity-50 min-h-[40px]"
           >
             {isSaving ? (
               <SpinnerIcon className="h-3.5 w-3.5 animate-spin" />

@@ -1,0 +1,44 @@
+# Banana UI Sound Effects (SFX) Guide
+
+This folder holds audio files for Banana's UI sound effects.
+All audio files must be MP3 format with standard 44.1kHz or 48kHz stereo/mono encoding.
+
+## Sound Categories & File Names
+
+Banana looks for the following specific sound files in this directory:
+
+1. Category: "Scroll"
+   Filename: scroll.mp3
+   Event: Fired when navigating tabs, cycling exploration lenses, or scrolling lists.
+   Master Volume: 0.25 (Duration ~30-60ms)
+   Characteristics: Soft tactile tick or paper-friction click. Throttled at 140ms.
+
+2. Category: "Enter"
+   Filename: enter.mp3
+   Event: Fired when clicking primary actions (Download MP4, Download MP3, Search, Batch Download).
+   Master Volume: 0.40 (Duration ~80-150ms)
+   Characteristics: Crisp Apple-like positive affirmation click.
+
+3. Category: "Back"
+   Filename: back.mp3
+   Event: Fired when closing drawers, canceling operations, removing items, or closing media player.
+   Master Volume: 0.35 (Duration ~70-120ms)
+   Characteristics: Gentle descending tone or subtle dismiss pop.
+
+4. Category: "Failed"
+   Filename: failed.mp3
+   Event: Fired when a download job fails, an invalid URL is entered, or an error occurs.
+   Master Volume: 0.45 (Duration ~150-250ms)
+   Characteristics: Non-jarring low alert, double-tap error tone.
+
+5. Category: "Notification"
+   Filename: notification.mp3
+   Event: Fired when a download finishes, item is added to collection, or playlist loads.
+   Master Volume: 0.45 (Duration ~120-250ms)
+   Characteristics: Friendly glass ding, soft marimba chord.
+
+## User-Facing Sound Toggle
+Audio playback respects the user-facing sound toggle stored in `localStorage['fruit_sound_enabled']` (default ON). When disabled, sound triggers exit immediately before attempting audio initialization.
+
+## Graceful Fallback Behavior
+- If any or all MP3 files are missing, Banana continues silently with zero errors or console warnings.

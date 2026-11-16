@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { searchVideos, formatCompactNumber } from '../lib/search'
+import { playEnter, playBack, playNotification, playFailed, playScroll } from '../lib/sound'
 import type { VideoSearchResult } from '../lib/types'
 import {
   CheckIcon,
@@ -42,6 +43,7 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
     const targetQuery = (overrideQuery ?? query).trim()
     if (!targetQuery) return
 
+    playEnter()
     if (overrideQuery) {
       setQuery(overrideQuery)
     }
@@ -54,9 +56,13 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
       const data = await searchVideos(targetQuery, 24)
       setResults(data)
       if (data.length === 0) {
+        playFailed()
         setError('No videos found for this search. Try different keywords.')
+      } else {
+        playNotification()
       }
     } catch (err: unknown) {
+      playFailed()
       setError(err instanceof Error ? err.message : 'Could not complete video search.')
       setResults([])
     } finally {
@@ -65,6 +71,7 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
   }
 
   const handleCopyUrl = async (video: VideoSearchResult) => {
+    playNotification()
     try {
       await navigator.clipboard.writeText(video.url)
       setCopiedId(video.id)
@@ -96,7 +103,7 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
         <div className="pb-3">
           <div className="flex items-center gap-2">
             <VideoIcon className="h-5 w-5 text-amber-500 dark:text-amber-400" />
-            <h2 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-stone-900 dark:text-stone-50">
+            <h2 className="font-heading text-base sm:text-xl font-bold tracking-tight text-stone-900 dark:text-stone-50">
               Video Search
             </h2>
           </div>
@@ -125,7 +132,10 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
               {query && (
                 <button
                   type="button"
-                  onClick={() => setQuery('')}
+                  onClick={() => {
+                    playBack()
+                    setQuery('')
+                  }}
                   className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
                   aria-label="Clear query"
                 >
@@ -137,10 +147,10 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
             <button
               type="submit"
               disabled={!query.trim() || isSearching}
-              className="focus-ring inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 sm:px-7 text-sm sm:text-base font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300 dark:disabled:bg-stone-800/80 dark:disabled:text-stone-600"
+              className="btn-glass-primary btn-interactive inline-flex h-12 sm:h-13 items-center justify-center gap-2 rounded-xl px-6 sm:px-7 text-sm sm:text-base font-bold shadow-soft whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
             >
               {isSearching ? (
-                <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
+                <SpinnerIcon className="h-4 w-4 animate-spin text-current" />
               ) : (
                 <SearchIcon className="h-4 w-4" />
               )}
@@ -158,7 +168,10 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
             <button
               key={sample}
               type="button"
-              onClick={() => handleSearch(sample)}
+              onClick={() => {
+                playScroll()
+                handleSearch(sample)
+              }}
               className="focus-ring rounded-lg border border-stone-200/80 bg-stone-50/70 px-2.5 py-1 text-xs font-medium text-stone-700 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-800 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-stone-300 dark:hover:border-amber-400/40 dark:hover:bg-amber-400/10 dark:hover:text-amber-300 transition"
             >
               {sample}
@@ -195,20 +208,23 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
             <span className="text-xs text-stone-500 dark:text-stone-400">Click any video to stream</span>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {results.map((video) => {
               const isCopied = copiedId === video.id
 
               return (
                 <div
                   key={video.id}
-                  className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-soft transition-all hover:border-amber-500/40 hover:shadow-lift dark:border-white/[0.08] dark:bg-[#181915] dark:hover:border-amber-400/40"
+                  className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-soft transition-all duration-200 hover:-translate-y-1 hover:border-stone-300 hover:shadow-lift dark:border-white/[0.08] dark:bg-[#181915] dark:hover:border-stone-700"
                 >
                   <div>
                     {/* Big & Visible Thumbnail */}
                     <div
                       className="relative aspect-video w-full cursor-pointer overflow-hidden bg-stone-950"
-                      onClick={() => onPlayVideo(video)}
+                      onClick={() => {
+                        playEnter()
+                        onPlayVideo(video)
+                      }}
                     >
                       <img
                         src={video.thumbnail}
@@ -233,7 +249,7 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
                           {video.badges.map((b) => (
                             <span
                               key={b}
-                              className="rounded-md bg-black/75 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300 backdrop-blur-md"
+                              className="rounded-md bg-black/75 px-1.5 py-0.5 text-micro font-black uppercase tracking-wider text-amber-300 backdrop-blur-md"
                             >
                               {b}
                             </span>
@@ -328,8 +344,11 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
                     {/* Play Video Button */}
                     <button
                       type="button"
-                      onClick={() => onPlayVideo(video)}
-                      className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-white shadow-2xs transition hover:bg-amber-600 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300"
+                      onClick={() => {
+                        playEnter()
+                        onPlayVideo(video)
+                      }}
+                      className="btn-glass-primary btn-interactive inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs sm:text-sm font-bold shadow-2xs"
                     >
                       <PlayIcon className="h-4 w-4" />
                       <span>Play Video</span>
@@ -355,7 +374,10 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
                       {/* Download Button */}
                       <button
                         type="button"
-                        onClick={() => onDownloadVideo(video)}
+                        onClick={() => {
+                          playEnter()
+                          onDownloadVideo(video)
+                        }}
                         className="focus-ring rounded-xl border border-stone-200/90 bg-white p-2 text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#22241E] dark:hover:text-stone-100"
                         title="Download video"
                         aria-label="Download video"
@@ -366,7 +388,10 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
                       {/* Add to Collection Button */}
                       <button
                         type="button"
-                        onClick={() => onAddToCollection(video)}
+                        onClick={() => {
+                          playNotification()
+                          onAddToCollection(video)
+                        }}
                         className="focus-ring rounded-xl border border-stone-200/90 bg-white p-2 text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 active:scale-95 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#22241E] dark:hover:text-stone-100"
                         title="Add to temporary collection"
                         aria-label="Add to temporary collection"
@@ -388,7 +413,7 @@ export function SearchView({ onPlayVideo, onDownloadVideo, onAddToCollection }: 
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-400/10 dark:text-amber-400 shadow-2xs">
             <VideoIcon className="h-7 w-7" />
           </div>
-          <h3 className="mt-4 font-heading text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100">
+          <h3 className="mt-4 font-heading text-base sm:text-xl font-bold text-stone-900 dark:text-stone-100">
             Search Any Video
           </h3>
           <p className="mx-auto mt-1.5 max-w-md text-xs sm:text-sm text-stone-500 dark:text-stone-400">

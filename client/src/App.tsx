@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CollectionDrawer } from './components/CollectionDrawer'
+import { DirectionalTabTransition } from './components/DirectionalTabTransition'
 import { DiscoverView } from './components/DiscoverView'
 import { DownloadItem } from './components/downloads/DownloadItem'
 import { DownloadQueue } from './components/downloads/DownloadQueue'
@@ -9,6 +10,7 @@ import { SearchView } from './components/SearchView'
 import { Select } from './components/Select'
 import { TrimPanel } from './components/TrimPanel'
 import { useDownloadManager } from './hooks/useDownloadManager'
+import { useKeyboardNav, NAV_TABS } from './hooks/useKeyboardNav'
 import {
   AlertIcon,
   BananaMark,
@@ -30,6 +32,13 @@ import {
   UserIcon,
 } from './components/icons'
 import {
+  playEnter,
+  playBack,
+  playNotification,
+  playFailed,
+  playScroll,
+} from './lib/sound'
+import {
   type MediaFormat,
   defaultQualityFor,
   fetchMediaInfo,
@@ -48,6 +57,85 @@ type ProcessState = 'idle' | 'fetching_info' | 'preparing' | 'completed' | 'erro
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('download')
+  const [tabDirection, setTabDirection] = useState<'right' | 'left' | 'fade'>('fade')
+
+  const handleTabChange = (nextTab: NavTab, direction?: 'right' | 'left') => {
+    if (activeTab !== nextTab) {
+      playScroll()
+      if (direction) {
+        setTabDirection(direction)
+      } else {
+        const prevIdx = NAV_TABS.indexOf(activeTab)
+        const nextIdx = NAV_TABS.indexOf(nextTab)
+        setTabDirection(nextIdx > prevIdx ? 'right' : 'left')
+      }
+      setActiveTab(nextTab)
+    }
+  }
+
+  // Global Ctrl + ArrowLeft / Ctrl + ArrowRight keyboard navigation with direction awareness
+  useKeyboardNav({ activeTab, onTabChange: handleTabChange })
+
+  // Desktop header sliding indicator pill state (motion.pill physics)
+  const desktopNavContainerRef = useRef<HTMLDivElement>(null)
+  const navItemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [navPillStyle, setNavPillStyle] = useState<{
+    left: number
+    top: number
+    width: number
+    height: number
+    opacity: number
+  }>({ left: 0, top: 0, width: 0, height: 0, opacity: 0 })
+  const [isNavPillReady, setIsNavPillReady] = useState(false)
+
+  const updateNavPill = () => {
+    const activeEl = navItemRefs.current[activeTab]
+    const container = desktopNavContainerRef.current
+    if (activeEl && container) {
+      let left = activeEl.offsetLeft
+      let top = activeEl.offsetTop
+      if (activeEl.offsetParent !== container) {
+        const navRect = container.getBoundingClientRect()
+        const elRect = activeEl.getBoundingClientRect()
+        left = Math.round(elRect.left - navRect.left)
+        top = Math.round(elRect.top - navRect.top)
+      }
+      const width = Math.round(activeEl.offsetWidth)
+      const height = Math.round(activeEl.offsetHeight)
+
+      if (width > 0 && height > 0) {
+        setNavPillStyle({
+          left,
+          top,
+          width,
+          height,
+          opacity: 1,
+        })
+      }
+    } else {
+      setNavPillStyle((prev) => ({ ...prev, opacity: 0 }))
+    }
+  }
+
+  useLayoutEffect(() => {
+    updateNavPill()
+  }, [activeTab])
+
+  useEffect(() => {
+    updateNavPill()
+    const timer = setTimeout(() => {
+      updateNavPill()
+      setIsNavPillReady(true)
+    }, 50)
+    window.addEventListener('resize', updateNavPill)
+    document.fonts?.ready?.then(() => {
+      updateNavPill()
+    })
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('resize', updateNavPill)
+    }
+  }, [activeTab])
 
   // Dark/Light theme state - default dark
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -197,6 +285,7 @@ export default function App() {
   }
 
   const handleClearUrl = () => {
+    playBack()
     cancelActiveRequest()
     setUrl('')
     setError('')
@@ -206,9 +295,12 @@ export default function App() {
   }
 
   const handleFormatChange = (next: MediaFormat) => {
-    setFormat(next)
-    setQuality(defaultQualityFor(next))
-    if (status === 'completed') setStatus('idle')
+    if (format !== next) {
+      playScroll()
+      setFormat(next)
+      setQuality(defaultQualityFor(next))
+      if (status === 'completed') setStatus('idle')
+    }
   }
 
   const handleFetchInfo = async () => {
@@ -222,6 +314,7 @@ export default function App() {
       return
     }
 
+    playEnter()
     cancelActiveRequest()
     const controller = new AbortController()
     abortControllerRef.current = controller
@@ -239,6 +332,7 @@ export default function App() {
       setDuration(typeof data.duration === 'number' ? data.duration : null)
       setStatus('idle')
       setStatusMessage('')
+      playNotification()
 
       // Configure in-player stream for instant playback preview
       setPlayingTrack({
@@ -250,6 +344,7 @@ export default function App() {
       })
     } catch (err: unknown) {
       if (controller.signal.aborted) return
+      playFailed()
       resetMediaPreview()
       setStatus('error')
       setError(err instanceof Error ? err.message : 'Could not retrieve media details.')
@@ -282,6 +377,7 @@ export default function App() {
       return
     }
 
+    playEnter()
     setError('')
     try {
       const job = await startDownloadJob(trimmedUrl, format, quality, {
@@ -292,6 +388,7 @@ export default function App() {
       })
       setActiveJobId(job.job_id)
     } catch (err: unknown) {
+      playFailed()
       setError(err instanceof Error ? err.message : 'Failed to initiate download job.')
     }
   }
@@ -372,15 +469,20 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col justify-between font-sans selection:bg-amber-200 selection:text-stone-900 dark:selection:bg-amber-400/30 dark:selection:text-amber-100">
+    <div className="relative flex min-h-screen flex-col justify-between font-sans selection:bg-amber-200 selection:text-stone-900 dark:selection:bg-amber-400/30 dark:selection:text-amber-100 overflow-x-hidden">
+      {/* Ambient light fields to enable subtle glass refraction (DESIGN.md Section 2.8) */}
+      <div className="pointer-events-none fixed top-12 -left-32 h-[500px] w-[500px] rounded-full bg-gradient-to-br from-amber-500/[0.05] to-transparent blur-[110px] dark:from-amber-400/[0.06]" />
+      <div className="pointer-events-none fixed top-1/3 -right-32 h-[480px] w-[480px] rounded-full bg-gradient-to-bl from-amber-400/[0.05] to-transparent blur-[110px] dark:from-amber-500/[0.05]" />
+      <div className="pointer-events-none fixed -bottom-32 left-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-tr from-amber-600/[0.04] to-transparent blur-[120px] dark:from-amber-300/[0.04]" />
+
       {/* 
-        DESKTOP NAVIGATION: Floating Glass Capsule (>= 640px)
-        Follows Kiwi Dual-Mode Navigation Architecture
+        DESKTOP NAVIGATION: Fixed Floating Glass Capsule (>= 640px)
+        Follows Kiwi Dual-Mode Navigation Architecture (Stationary Pinned Header)
       */}
-      <header className="sticky top-4 z-40 mx-auto hidden w-full max-w-5xl px-4 sm:block">
-        <div className="glass-capsule flex items-center justify-between gap-3 rounded-full px-5 py-2.5 shadow-floating">
+      <header className="fixed top-3 inset-x-0 z-40 mx-auto hidden w-full max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8 sm:block pointer-events-none">
+        <div className="glass-capsule pointer-events-auto flex items-center justify-between gap-4 rounded-full px-5 py-2.5 shadow-floating">
           {/* Brand Logo & Wordmark */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0 flex-1 justify-start">
             <div className="flex h-9 w-9 items-center justify-center rounded-full border border-black/[0.06] bg-white p-1.5 shadow-2xs dark:border-white/[0.08] dark:bg-stone-800">
               <BananaMark className="h-6 w-auto drop-shadow-sm transition-transform hover:scale-105" />
             </div>
@@ -389,75 +491,104 @@ export default function App() {
             </span>
           </div>
 
-          {/* Primary Navigation Pill Links */}
-          <nav aria-label="Main Navigation" className="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveTab('download')}
-              className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === 'download'
-                  ? 'bg-stone-900 text-white shadow-xs dark:bg-stone-100 dark:text-stone-900'
-                  : 'text-stone-600 hover:bg-stone-100/70 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
-              }`}
-            >
-              <DownloadIcon className="h-4 w-4" />
-              <span>Download</span>
-            </button>
+          {/* Primary Navigation Pill Links with Sliding Active Pill Motion Physics */}
+          <nav aria-label="Main Navigation" className="flex items-center justify-center shrink-0">
+            <div ref={desktopNavContainerRef} className="relative flex items-center gap-1 sm:gap-1.5">
+              {/* Dynamic Sliding Active Indicator Pill (motion.pill: 300ms cubic-bezier(0.2, 0.8, 0.2, 1)) */}
+              <div
+                className={`absolute top-0 left-0 z-0 rounded-full bg-stone-900 dark:bg-stone-100 shadow-xs pointer-events-none ${
+                  isNavPillReady ? 'transition-[transform,width] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : ''
+                }`}
+                style={{
+                  transform: `translate3d(${navPillStyle.left}px, ${navPillStyle.top}px, 0)`,
+                  width: `${navPillStyle.width}px`,
+                  height: `${navPillStyle.height}px`,
+                  opacity: navPillStyle.opacity,
+                  willChange: 'transform, width',
+                }}
+                aria-hidden="true"
+              />
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('discover')}
-              className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === 'discover'
-                  ? 'bg-stone-900 text-white shadow-xs dark:bg-stone-100 dark:text-stone-900'
-                  : 'text-stone-600 hover:bg-stone-100/70 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
-              }`}
-            >
-              <SparklesIcon className="h-4 w-4" />
-              <span>Discover</span>
-            </button>
+              <button
+                type="button"
+                ref={(el) => {
+                  navItemRefs.current['download'] = el
+                }}
+                onClick={() => handleTabChange('download')}
+                className={`relative z-10 focus-ring flex items-center gap-2 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold transition-colors duration-200 ${
+                  activeTab === 'download'
+                    ? 'text-white dark:text-stone-900 font-bold'
+                    : 'text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-white'
+                }`}
+              >
+                <DownloadIcon className="h-4 w-4" />
+                <span>Download</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('search')}
-              className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === 'search'
-                  ? 'bg-stone-900 text-white shadow-xs dark:bg-stone-100 dark:text-stone-900'
-                  : 'text-stone-600 hover:bg-stone-100/70 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
-              }`}
-            >
-              <SearchIcon className="h-4 w-4" />
-              <span>Search</span>
-            </button>
+              <button
+                type="button"
+                ref={(el) => {
+                  navItemRefs.current['discover'] = el
+                }}
+                onClick={() => handleTabChange('discover')}
+                className={`relative z-10 focus-ring flex items-center gap-2 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold transition-colors duration-200 ${
+                  activeTab === 'discover'
+                    ? 'text-white dark:text-stone-900 font-bold'
+                    : 'text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-white'
+                }`}
+              >
+                <SparklesIcon className="h-4 w-4" />
+                <span>Discover</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('playlists')}
-              className={`focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === 'playlists'
-                  ? 'bg-stone-900 text-white shadow-xs dark:bg-stone-100 dark:text-stone-900'
-                  : 'text-stone-600 hover:bg-stone-100/70 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800/70 dark:hover:text-white'
-              }`}
-            >
-              <ListMusicIcon className="h-4 w-4" />
-              <span>Playlists</span>
-            </button>
+              <button
+                type="button"
+                ref={(el) => {
+                  navItemRefs.current['search'] = el
+                }}
+                onClick={() => handleTabChange('search')}
+                className={`relative z-10 focus-ring flex items-center gap-2 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold transition-colors duration-200 ${
+                  activeTab === 'search'
+                    ? 'text-white dark:text-stone-900 font-bold'
+                    : 'text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-white'
+                }`}
+              >
+                <SearchIcon className="h-4 w-4" />
+                <span>Search</span>
+              </button>
+
+              <button
+                type="button"
+                ref={(el) => {
+                  navItemRefs.current['playlists'] = el
+                }}
+                onClick={() => handleTabChange('playlists')}
+                className={`relative z-10 focus-ring flex items-center gap-2 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold transition-colors duration-200 ${
+                  activeTab === 'playlists'
+                    ? 'text-white dark:text-stone-900 font-bold'
+                    : 'text-stone-600 hover:text-stone-900 dark:text-stone-300 dark:hover:text-white'
+                }`}
+              >
+                <ListMusicIcon className="h-4 w-4" />
+                <span>Playlists</span>
+              </button>
+            </div>
           </nav>
 
           {/* Right Controls: Downloads Queue + Collection Drawer + Theme Switcher */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center justify-end gap-2 shrink-0 flex-1">
             <button
               type="button"
               onClick={() => setIsDownloadQueueOpen(true)}
-              className="focus-ring flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/80 transition"
+              className="focus-ring flex items-center gap-2 rounded-full px-3.5 py-2 text-xs sm:text-sm font-semibold text-stone-700 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/80 transition"
               title="Open downloads manager"
               aria-label="Open downloads manager"
             >
               <DownloadIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-              <span>Downloads</span>
+              <span className="hidden md:inline">Downloads</span>
               {jobs.length > 0 && (
                 <span
-                  className={`flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                  className={`flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1 text-micro font-bold ${
                     activeCount > 0
                       ? 'bg-amber-500 text-stone-950 animate-pulse'
                       : 'bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-300'
@@ -471,14 +602,14 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsCollectionOpen(true)}
-              className="focus-ring flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/80 transition"
+              className="focus-ring flex items-center gap-2 rounded-full px-3.5 py-2 text-xs sm:text-sm font-semibold text-stone-700 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/80 transition"
               title="Open session collection"
               aria-label="Open session collection"
             >
               <CollectionIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-              <span>Collection</span>
+              <span className="hidden md:inline">Collection</span>
               {collection.length > 0 && (
-                <span className="flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white dark:bg-amber-400 dark:text-stone-950">
+                <span className="flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-micro font-bold text-white dark:bg-amber-400 dark:text-stone-950">
                   {collection.length}
                 </span>
               )}
@@ -504,9 +635,10 @@ export default function App() {
       </header>
 
       {/* 
-        MOBILE TOP BAR: Sticky Top Header (< 640px)
+        MOBILE TOP BAR: Fixed Top Header (< 640px)
+        Stationary pinned header immune to scrolling
       */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/[0.05] bg-white/95 px-4 py-3 backdrop-blur-md dark:border-white/[0.08] dark:bg-[#181915]/95 sm:hidden transition-colors duration-200">
+      <header className="fixed top-0 inset-x-0 z-40 flex items-center justify-between border-b border-black/[0.05] bg-white/95 px-4 py-3 backdrop-blur-md dark:border-white/[0.08] dark:bg-[#181915]/95 sm:hidden transition-colors duration-200">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.06] bg-white p-1 shadow-2xs dark:border-white/[0.08] dark:bg-stone-800">
             <BananaMark className="h-5 w-auto" />
@@ -527,7 +659,7 @@ export default function App() {
             <DownloadIcon className="h-5 w-5 text-amber-500 dark:text-amber-400" />
             {jobs.length > 0 && (
               <span
-                className={`absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold ${
+                className={`absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-micro font-bold ${
                   activeCount > 0 ? 'bg-amber-500 text-stone-950 animate-pulse' : 'bg-stone-500 text-white'
                 }`}
               >
@@ -545,7 +677,7 @@ export default function App() {
           >
             <CollectionIcon className="h-5 w-5 text-amber-500 dark:text-amber-400" />
             {collection.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white dark:bg-amber-400 dark:text-stone-950">
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-micro font-bold text-white dark:bg-amber-400 dark:text-stone-950">
                 {collection.length}
               </span>
             )}
@@ -567,18 +699,19 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="mx-auto w-full max-w-4xl px-4 py-6 pb-28 sm:py-8 sm:pb-16 flex-1">
+      {/* Main Content Area - Offsets fixed top header with pt-20 sm:pt-24 */}
+      <main className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-28 sm:pb-16 flex-1">
         {/* Global Floating Player (when a track is selected for preview) */}
         {playingTrack && (
-          <div className="mb-7 animate-fade-in">
+          <div className="mb-7 animate-scale-in">
             <div className="flex items-center justify-between pb-2 px-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              <span className="text-micro font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                 Now Playing Preview
               </span>
               <button
                 type="button"
                 onClick={() => {
+                  playBack()
                   setPlayingTrack(null)
                   setIsTrimOpen(false)
                 }}
@@ -625,15 +758,21 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 1: Download Screen */}
-        {activeTab === 'download' && (
-          <div className="space-y-6">
+        {/* Directional Route Transition between views (Apple-grade 2-layer slide animation) */}
+        <DirectionalTabTransition
+          activeTab={activeTab}
+          direction={tabDirection}
+          renderTab={(tab) => {
+            switch (tab) {
+              case 'download':
+                return (
+                  <div className="space-y-6">
             {/* Page Header Block following Kiwi PageShell style */}
             <div className="mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-sans">
                 Ephemeral Media Extractor
               </span>
-              <h1 className="mt-1 font-sans text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
+              <h1 className="mt-1 font-sans text-2xl sm:text-4xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
                 Downloader
               </h1>
               <p className="mt-1.5 text-sm sm:text-base text-stone-600 dark:text-stone-400 font-sans">
@@ -762,7 +901,7 @@ export default function App() {
                     type="button"
                     onClick={handleFetchInfo}
                     disabled={!trimmedUrl || isBusy}
-                    className="focus-ring inline-flex h-12 sm:h-13 shrink-0 items-center justify-center gap-2 rounded-xl border border-stone-200/90 bg-white px-4 sm:px-5 text-sm font-bold text-stone-700 shadow-2xs transition hover:bg-stone-50 hover:text-stone-900 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:border-stone-200/60 disabled:bg-stone-100/60 disabled:text-stone-400 dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white dark:disabled:border-white/[0.04] dark:disabled:bg-stone-900/40 dark:disabled:text-stone-600"
+                    className="btn-glass-secondary btn-interactive inline-flex h-12 sm:h-13 shrink-0 items-center justify-center gap-2 rounded-xl px-4 sm:px-5 text-sm font-bold shadow-2xs whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {status === 'fetching_info' ? (
                       <SpinnerIcon className="h-4 w-4 animate-spin text-amber-500 dark:text-amber-400" />
@@ -776,10 +915,10 @@ export default function App() {
                     type="button"
                     onClick={handleDownload}
                     disabled={!trimmedUrl || isBusy}
-                    className="focus-ring inline-flex h-12 sm:h-13 min-w-[140px] flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 sm:px-6 text-sm sm:text-base font-bold text-white shadow-soft transition hover:bg-amber-600 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none dark:bg-amber-400 dark:text-stone-950 dark:hover:bg-amber-300 dark:disabled:bg-stone-800/80 dark:disabled:text-stone-600"
+                    className="btn-glass-primary btn-interactive inline-flex h-12 sm:h-13 min-w-[140px] flex-1 items-center justify-center gap-2 rounded-xl px-5 sm:px-6 text-sm sm:text-base font-bold shadow-soft whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                   >
                     {isJobBusy ? (
-                      <SpinnerIcon className="h-4 w-4 animate-spin text-white dark:text-stone-950" />
+                      <SpinnerIcon className="h-4 w-4 animate-spin text-current" />
                     ) : (
                       <DownloadIcon className="h-4 w-4" />
                     )}
@@ -796,7 +935,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setIsTrimOpen(!isTrimOpen)}
-                      className="focus-ring inline-flex h-12 sm:h-13 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-700 shadow-2xs hover:bg-stone-50 active:scale-95 whitespace-nowrap dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-300 dark:hover:bg-[#20211C] dark:hover:text-white"
+                      className="btn-glass-secondary btn-interactive inline-flex h-12 sm:h-13 shrink-0 items-center justify-center gap-1.5 rounded-xl px-4 text-xs sm:text-sm font-bold shadow-2xs whitespace-nowrap"
                       title="Trim media clip"
                     >
                       <ScissorsIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" />
@@ -811,7 +950,7 @@ export default function App() {
                         cancelActiveRequest()
                         if (activeJob) cancelJob(activeJob.job_id)
                       }}
-                      className="focus-ring inline-flex h-12 sm:h-13 shrink-0 items-center justify-center rounded-xl border border-stone-200/90 bg-white px-4 text-xs sm:text-sm font-bold text-stone-600 transition hover:bg-stone-50 active:scale-95 whitespace-nowrap dark:border-white/[0.08] dark:bg-[#1C1D18] dark:text-stone-400 dark:hover:bg-[#20211C]"
+                      className="btn-glass-secondary btn-interactive inline-flex h-12 sm:h-13 shrink-0 items-center justify-center rounded-xl px-4 text-xs sm:text-sm font-bold whitespace-nowrap"
                     >
                       Cancel
                     </button>
@@ -822,13 +961,13 @@ export default function App() {
                 {activeJob && (
                   <div className="mt-5 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                      <span className="text-micro font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                         Active Download Progress
                       </span>
                       <button
                         type="button"
                         onClick={() => setIsDownloadQueueOpen(true)}
-                        className="text-[11px] font-semibold text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
+                        className="text-xs font-semibold text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
                       >
                         View All in Queue &rarr;
                       </button>
@@ -933,6 +1072,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => {
+                          playEnter()
                           setPlayingTrack({
                             url: trimmedUrl,
                             title: title || 'Media Track',
@@ -943,7 +1083,7 @@ export default function App() {
                         className="focus-ring absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100"
                         title="Play in preview player"
                       >
-                        <div className="flex h-13 w-13 items-center justify-center rounded-full bg-amber-500 text-white shadow-xl ring-4 ring-white/30 transition transform group-hover:scale-110 group-hover:bg-amber-400 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:ring-black/40">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white shadow-xl ring-4 ring-white/30 transition transform group-hover:scale-110 group-hover:bg-amber-400 active:scale-95 dark:bg-amber-400 dark:text-stone-950 dark:ring-black/40">
                           <PlayIcon className="h-6 w-6" />
                         </div>
                       </button>
@@ -964,7 +1104,7 @@ export default function App() {
 
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-3 dark:border-white/[0.06] dark:bg-[#1C1D18]">
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                        <div className="flex items-center gap-1.5 text-micro font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
                           <UserIcon className="h-3.5 w-3.5" />
                           Channel
                         </div>
@@ -974,7 +1114,7 @@ export default function App() {
                       </div>
 
                       <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-3 dark:border-white/[0.06] dark:bg-[#1C1D18]">
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                        <div className="flex items-center gap-1.5 text-micro font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
                           <ClockIcon className="h-3.5 w-3.5" />
                           {preparedSize ? 'Size' : 'Duration'}
                         </div>
@@ -987,17 +1127,16 @@ export default function App() {
                 </div>
               </aside>
             </div>
-          </div>
-        )}
-
-        {/* Tab 2: Discover Screen */}
-        {activeTab === 'discover' && (
-          <div className="space-y-6">
+                  </div>
+                )
+              case 'discover':
+                return (
+                  <div className="space-y-6">
             <div className="mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-sans">
                 Algorithmic Exploration
               </span>
-              <h1 className="mt-1 font-sans text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
+              <h1 className="mt-1 font-sans text-2xl sm:text-4xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
                 Music Discovery
               </h1>
               <p className="mt-1.5 text-sm sm:text-base text-stone-600 dark:text-stone-400 font-sans">
@@ -1010,17 +1149,16 @@ export default function App() {
               onDownloadTrack={handleDownloadTrackFromExternal}
               onAddToCollection={addToCollection}
             />
-          </div>
-        )}
-
-        {/* Tab 3: Search Screen */}
-        {activeTab === 'search' && (
-          <div className="space-y-6">
+                  </div>
+                )
+              case 'search':
+                return (
+                  <div className="space-y-6">
             <div className="mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-sans">
                 Full Video Catalog
               </span>
-              <h1 className="mt-1 font-sans text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
+              <h1 className="mt-1 font-sans text-2xl sm:text-4xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
                 Search Videos
               </h1>
               <p className="mt-1.5 text-sm sm:text-base text-stone-600 dark:text-stone-400 font-sans">
@@ -1033,17 +1171,16 @@ export default function App() {
               onDownloadVideo={handleDownloadVideoFromSearch}
               onAddToCollection={handleAddVideoToCollection}
             />
-          </div>
-        )}
-
-        {/* Tab 4: Playlists Screen */}
-        {activeTab === 'playlists' && (
-          <div className="space-y-6">
+                  </div>
+                )
+              case 'playlists':
+                return (
+                  <div className="space-y-6">
             <div className="mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-sans">
                 Batch Track Extraction
               </span>
-              <h1 className="mt-1 font-sans text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
+              <h1 className="mt-1 font-sans text-2xl sm:text-4xl font-extrabold tracking-tight text-stone-900 dark:text-stone-50">
                 Playlists
               </h1>
               <p className="mt-1.5 text-sm sm:text-base text-stone-600 dark:text-stone-400 font-sans">
@@ -1051,13 +1188,16 @@ export default function App() {
               </p>
             </div>
 
-            <PlaylistView
-              onPlayTrack={handlePlayTrackFromExternal}
-              onDownloadTrack={handleDownloadTrackFromExternal}
-              onAddMultipleToCollection={addMultipleToCollection}
-            />
-          </div>
-        )}
+                    <PlaylistView
+                      onPlayTrack={handlePlayTrackFromExternal}
+                      onDownloadTrack={handleDownloadTrackFromExternal}
+                      onAddMultipleToCollection={addMultipleToCollection}
+                    />
+                  </div>
+                )
+            }
+          }}
+        />
       </main>
 
       {/* Floating Temporary Collection Drawer */}
@@ -1085,15 +1225,15 @@ export default function App() {
 
       {/* 
         MOBILE BOTTOM DOCK: Fixed Floating Pill (< 640px)
-        Follows Kiwi Dual-Mode Navigation Architecture
+        Follows Kiwi Dual-Mode Navigation Architecture with fluid active pill
       */}
-      <div className="fixed bottom-3 inset-x-3 z-50 grid grid-cols-4 gap-1 rounded-2xl border border-black/[0.08] bg-white/95 py-1.5 px-1.5 shadow-lift backdrop-blur-lg dark:border-white/[0.08] dark:bg-[#181915]/95 sm:hidden transition-colors duration-200">
+      <div className="fixed bottom-3 inset-x-3 z-50 grid grid-cols-4 gap-1 rounded-full glass-capsule py-1.5 px-2 shadow-lift sm:hidden transition-colors duration-200">
         <button
           type="button"
-          onClick={() => setActiveTab('download')}
-          className={`flex flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition ${
+          onClick={() => handleTabChange('download')}
+          className={`btn-interactive flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-full py-1 text-xs font-semibold transition-all duration-200 ${
             activeTab === 'download'
-              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold scale-[1.02]'
               : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
           }`}
         >
@@ -1103,10 +1243,10 @@ export default function App() {
 
         <button
           type="button"
-          onClick={() => setActiveTab('discover')}
-          className={`flex flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition ${
+          onClick={() => handleTabChange('discover')}
+          className={`btn-interactive flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-full py-1 text-xs font-semibold transition-all duration-200 ${
             activeTab === 'discover'
-              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold scale-[1.02]'
               : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
           }`}
         >
@@ -1116,10 +1256,10 @@ export default function App() {
 
         <button
           type="button"
-          onClick={() => setActiveTab('search')}
-          className={`flex flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition ${
+          onClick={() => handleTabChange('search')}
+          className={`btn-interactive flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-full py-1 text-xs font-semibold transition-all duration-200 ${
             activeTab === 'search'
-              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold scale-[1.02]'
               : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
           }`}
         >
@@ -1129,10 +1269,10 @@ export default function App() {
 
         <button
           type="button"
-          onClick={() => setActiveTab('playlists')}
-          className={`flex flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition ${
+          onClick={() => handleTabChange('playlists')}
+          className={`btn-interactive flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-full py-1 text-xs font-semibold transition-all duration-200 ${
             activeTab === 'playlists'
-              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+              ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold scale-[1.02]'
               : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
           }`}
         >
@@ -1142,7 +1282,7 @@ export default function App() {
       </div>
 
       {/* Clean Modern Minimal Footer */}
-      <footer className="mx-auto mt-10 flex w-full max-w-4xl items-center justify-between border-t border-stone-200/80 dark:border-white/[0.08] px-4 py-6 text-xs text-stone-500 dark:text-stone-400">
+      <footer className="mx-auto mt-10 flex w-full max-w-6xl xl:max-w-7xl items-center justify-between border-t border-stone-200/80 dark:border-white/[0.08] px-4 sm:px-6 lg:px-8 py-6 text-xs text-stone-500 dark:text-stone-400">
         <div className="flex items-center gap-2">
           <BananaMark className="h-4 w-auto" />
           <span className="font-display font-bold text-stone-800 dark:text-stone-200">Banana</span>
